@@ -1,0 +1,4 @@
+Panda3D>=1.10.4.1
+Pillow>=6.1.0
+numpy>=1.17.2
+pyfastnoisesimd>=0.4.1

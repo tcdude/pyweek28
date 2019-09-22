@@ -1,0 +1,5 @@
+# python stuff
+.idea/
+.vscode/
+venv*/
+**pycache**/
