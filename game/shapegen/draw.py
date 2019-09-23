@@ -62,6 +62,10 @@ class Draw(object):
         self._orient.set_pos_hpr(pos, hpr)
         return center_point
 
+    @property
+    def transform_mat(self):
+        return self._heading_correction.get_transform(self._world).get_mat()
+
     def setup(self, origin, direction):
         """
         Setup the rigs' origin and direction
@@ -97,8 +101,8 @@ class Draw(object):
             p: pitch
             r: draw radius (distance from orientation)
         """
-        # y flipped due to origin pitch/heading corrections
-        self._orient.set_pos_hpr(x, -y, z, h, p, 0)
+        # TODO: test this...
+        self._orient.set_pos_hpr(y, x, z, h, p, 0)
         self._draw.set_y(r)
 
     def set_hp_r(self, h, p, r=None):

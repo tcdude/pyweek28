@@ -132,6 +132,9 @@ class VertArray(object):
     def add_triangle(self, va, vb, vc):
         self._prim.add_vertices(va, vb, vc)
 
+    def transform(self, mat):
+        self._vdata.transform_vertices(mat)
+
     @property
     def node(self):
         geom = core.Geom(self._vdata)

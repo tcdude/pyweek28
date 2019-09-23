@@ -46,12 +46,56 @@ class Mesh(object):
         self._vid = 0
         self._vertex_normals_computed = -1
 
+    @property
+    def triangles(self):
+        return self._trs
+
+    def mirror_extend(self, axis):
+        tmp_msh = Mesh()
+        tmp_msh.extend(self)
+        tmp_msh.mirror_local(axis)
+        self.extend(tmp_msh)
+
+    def mirror_local(self, axis):
+        tmp_vts = {}
+        tmp_vts.update(self._vts)
+        for v in tmp_vts.values():
+            pt = core.Vec3(v.point)
+            pt[axis] *= -1
+            if pt == v.point:
+                continue
+            if v.point in self._pts:
+                self._pts[pt] = self._pts.pop(v.point)
+            v.point = pt
+        self.flip_faces()
+
+    def flip_faces(self):
+        for t in self._trs:
+            t[0], t[1] = t[1], t[0]
+
+    def extend(self, other):
+        # type: (Mesh) -> None
+        """
+        Extends this instance with all triangles of `other`. Does not consider
+        unused vertices!!!
+
+        Args:
+            other: Mesh
+        """
+        for t in other.triangles:
+            triangle = [
+                self.add_vertex(v.point, v.color, v.texcoord)
+                for v in t
+            ]
+            self.add_triangle(*triangle)
+
     def export(
             self,
             face_normals=True,
             avg_color=True,
             sharp_angle=80.0,
-            nac=common.NAC
+            nac=common.NAC,
+            transform=None
     ):
         """
         Return a Panda Node of the mesh.
@@ -65,6 +109,7 @@ class Mesh(object):
                 which sharp edges will be generated
             nac: if True ignores the vertex color and uses the
                 normal vector as color (helpful for debugging)
+            transform: transformation to apply to GeomVertexData.
         """
         va = util.VertArray(self._name)
 
@@ -101,6 +146,8 @@ class Mesh(object):
             for t in self._trs:
                 triangle = [mesh2va[v] for v in t]
                 va.add_triangle(*triangle)
+        if transform is not None:
+            va.transform(transform)
         return va.node
 
     def _compute_smooth_normals(self, sharp_angle):
@@ -251,6 +298,14 @@ class Point(object):
     def vertices(self):
         return [self._m[i].vid for i in self._vts.values()]
 
+    @property
+    def point(self):
+        return self._point
+
+    @point.setter
+    def point(self, value):
+        self._point = value
+
 
 class Vertex(object):
     def __init__(self, vid, point, color=core.Vec4(1), texcoord=core.Vec2(0)):
@@ -292,6 +347,10 @@ class Vertex(object):
     @property
     def point(self):
         return self._point
+
+    @point.setter
+    def point(self, value):
+        self._point = value
 
     @property
     def color(self):

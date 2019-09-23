@@ -60,6 +60,7 @@ class GameApp(ShowBase):
         self._shapegen = shape.ShapeGen()
         self.accept('s', self.add_sphere)
         self.accept('c', self.add_cone)
+        self.accept('b', self.add_box)
         self.accept('escape', sys.exit, [0])
         self.accept('f1', self.toggle_wireframe)
 
@@ -121,5 +122,18 @@ class GameApp(ShowBase):
                 h_offset,
                 random.random(),
                 top_offset
+            )
+        )
+
+    def add_box(self):
+        direction, origin = rand_cs()
+        bounds = rand_vec3(2, 30)
+        self.render.attach_new_node(
+            self._shapegen.box(
+                origin,
+                direction,
+                bounds,
+                corner_radius=random.uniform(0, min(bounds) * 0.5),
+                smooth=True
             )
         )

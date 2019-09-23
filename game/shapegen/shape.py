@@ -391,6 +391,177 @@ class ShapeGen(object):
             nac=nac
         )
 
+    def box(
+            self,
+            origin,
+            direction,
+            bounds,
+            max_seg_len=None,
+            corner_radius=0.0,
+            smooth=False,
+            sharp_angle=80.0,
+            color=core.Vec4(1),
+            nac=common.NAC,
+            name=None
+    ):
+        """
+        Returns a parametric cuboid shape.
+
+        Args:
+            origin:
+            direction:
+            bounds: half distance
+            max_seg_len: number of vertices per plane (multiple of 4)
+            corner_radius: radius at corners and edges
+            smooth:
+            sharp_angle:
+            color:
+            nac:
+            name:
+        """
+        if not isinstance(bounds, core.Vec3):
+            raise TypeError('bounds needs to be type Vec3')
+        if not isinstance(corner_radius, (float, int)) or corner_radius < 0:
+            raise ValueError('corner_radius is expected to be a number >= 0')
+        if corner_radius >= min(bounds):
+            raise ValueError('illegal corner radius')
+        if not isinstance(sharp_angle, (int, float)) \
+                or not (0 < sharp_angle <= 180):
+            raise ValueError('illegal value for sharp_angle')
+        if not (isinstance(max_seg_len, (float, int)) or max_seg_len is None):
+            raise TypeError('expected float/int/NoneType for arg polygon')
+        # if max_seg_len is not None \
+        #         and max_seg_len > min(bounds) - corner_radius:
+        #     raise ValueError('expected max_seg_len to be larger than the '
+        #                      'smallest bounds - corner_radius')
+
+        msh = mesh.Mesh(name or 'box')
+        self._draw.setup(core.Vec3(0), core.Vec3.forward())
+
+        max_seg_len = min(bounds - corner_radius) / 4
+        b_seg_count = core.LVecBase3i(
+            *map(int, map(
+                    ceil, (bounds - corner_radius) / max_seg_len
+            ))
+        )
+        top_seg_count = int(
+            ceil(max((bounds.xy - corner_radius) / max_seg_len))
+        )
+        z_seg_count = int(ceil((bounds.z - corner_radius) / max_seg_len))
+        top_x_m = np.linspace(
+            0,
+            1.0 / bounds.x * (bounds.x - corner_radius),
+            top_seg_count,
+            endpoint=False
+        )
+        top_y_m = np.linspace(
+            0,
+            1.0 / bounds.y * (bounds.y - corner_radius),
+            top_seg_count,
+            endpoint=False
+        )
+
+        if corner_radius:
+            c_seg_count = max(
+                int(ceil(pi * corner_radius * 0.5 / max_seg_len)),
+                3
+            )
+            hpi = np.linspace(0, np.pi * 0.5, c_seg_count + 1)
+            sin_quart = np.sin(hpi)
+            cos_quart = np.round(np.cos(hpi), 6)
+            x_offsets = np.concatenate((
+                np.linspace(
+                    0,
+                    bounds.x - corner_radius,
+                    b_seg_count.x + 1,
+                    endpoint=False
+                ),
+                bounds.x - (1 - sin_quart) * corner_radius,
+                np.array([bounds.x] * b_seg_count.y)
+            ))
+            y_offsets = np.concatenate((
+                np.array([bounds.y] * (b_seg_count.x + 1)),
+                bounds.y - (1 - cos_quart) * corner_radius,
+                np.linspace(
+                    0,
+                    bounds.y - corner_radius,
+                    b_seg_count.y,
+                    endpoint=False
+                )[::-1]
+            ))
+            z_offsets = np.concatenate((
+                np.ones(top_seg_count) * bounds.z,
+                bounds.z - corner_radius + cos_quart * corner_radius,
+                np.linspace(
+                    0,
+                    bounds.z - corner_radius,
+                    z_seg_count,
+                    endpoint=False
+                )[::-1]
+            ))
+            z_x_m = np.concatenate((
+                top_x_m,
+                1.0 / bounds.x * (bounds.x - corner_radius + sin_quart * corner_radius),
+                np.ones(z_seg_count)
+            ))
+            z_y_m = np.concatenate((
+                top_y_m,
+                1.0 / bounds.y * (bounds.y - corner_radius + sin_quart * corner_radius),
+                np.ones(z_seg_count)
+            ))
+        else:
+            x_offsets = np.concatenate((
+                np.linspace(0, bounds.x, b_seg_count.x, endpoint=False),
+                np.ones(b_seg_count.y + 1) * bounds.x
+            ))
+            y_offsets = np.concatenate((
+                np.ones(b_seg_count.x) * bounds.y,
+                np.linspace(bounds.y, 0, b_seg_count.y + 1)
+            ))
+            z_offsets = np.concatenate((
+                np.ones(top_seg_count + 1) * bounds.z,
+                np.linspace(
+                    0,
+                    bounds.z,
+                    z_seg_count,
+                    endpoint=False
+                )[::-1]
+            ))
+            z_x_m = np.concatenate((
+                top_x_m,
+                np.ones(z_seg_count + 1)
+            ))
+            z_y_m = np.concatenate((
+                top_y_m,
+                np.ones(z_seg_count + 1)
+            ))
+
+        verts = []
+        for z, xm, ym in zip(z_offsets, z_x_m, z_y_m):
+            if xm == ym == 0:
+                self._draw.set_pos_hp_r(0, 0, z, 0, 0, 0)
+                verts.append([msh.add_vertex(self._draw.point, color)])
+                continue
+            elif not xm or not ym:
+                raise RuntimeError('xm and ym must be either both 0 or '
+                                   'positive')
+            line = []
+            for x, y in zip(x_offsets * xm, y_offsets * ym):
+                self._draw.set_pos_hp_r(x, y, z, 0, 0, 0)
+                line.append(msh.add_vertex(self._draw.point, color))
+            verts.append(line)
+
+        self._populate_triangles(msh, verts, wrap=False, ccw=False)
+        for i in range(3):
+            msh.mirror_extend(i)
+        self._draw.setup(origin, direction)
+        return msh.export(
+            face_normals=not smooth,
+            sharp_angle=sharp_angle,
+            nac=nac,
+            transform=self._draw.transform_mat
+        )
+
     @staticmethod
     def _populate_triangles(msh, verts, wrap, ccw=True, chk_illegal=False):
         for i in range(len(verts) - 1):
