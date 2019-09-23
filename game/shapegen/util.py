@@ -105,27 +105,40 @@ def triangle_line_connect(upper, lower, wrap_around=True, ccw=True):
 
 # noinspection PyArgumentList
 class VertArray(object):
-    def __init__(self, name='noname'):
+    def __init__(self, name='noname', no_texcoord=False):
         self._name = name
-        self._vdata = core.GeomVertexData(
-            self._name,
-            core.GeomVertexFormat.get_v3n3c4t2(),
-            core.Geom.UH_static
-        )
+        self._no_texcoord = no_texcoord
+        if no_texcoord:
+            self._vdata = core.GeomVertexData(
+                self._name,
+                core.GeomVertexFormat.get_v3n3c4(),
+                core.Geom.UH_static
+            )
+        else:
+            self._vdata = core.GeomVertexData(
+                self._name,
+                core.GeomVertexFormat.get_v3n3c4t2(),
+                core.Geom.UH_static
+            )
+
         self._vwriter = core.GeomVertexWriter(self._vdata, 'vertex')
         self._nwriter = core.GeomVertexWriter(self._vdata, 'normal')
         self._cwriter = core.GeomVertexWriter(self._vdata, 'color')
-        self._twriter = core.GeomVertexWriter(self._vdata, 'texcoord')
+        if not no_texcoord:
+            self._twriter = core.GeomVertexWriter(self._vdata, 'texcoord')
+        else:
+            self._twriter = None
         self._prim = core.GeomTriangles(core.Geom.UH_static)
 
         self._v_id = 0
         self.set_num_rows = self._vdata.set_num_rows
 
-    def add_row(self, point, normal, color, tex):
+    def add_row(self, point, normal, color, tex=None):
         self._vwriter.add_data3(point)
         self._nwriter.add_data3(normal)
         self._cwriter.add_data4(color)
-        self._twriter.add_data2(tex)
+        if not self._no_texcoord:
+            self._twriter.add_data2(tex)
         self._v_id += 1
         return self._v_id - 1
 

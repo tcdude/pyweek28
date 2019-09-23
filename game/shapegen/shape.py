@@ -224,12 +224,15 @@ class ShapeGen(object):
             name:
         """
         rd = radius if isinstance(radius, (tuple, list)) else (radius, radius)
+        zc = 0
         for i, r in enumerate(rd):
             if i > 1:
                 raise ValueError('maximum 2 radii allowed')
             if r <= 0:
-                raise ValueError('radius/radii have to be positive and '
-                                 'non-zero float(s)/int(s)')
+                zc += 1
+        if zc == 2:
+            raise ValueError('radius/radii have to be positive and '
+                             'non-zero float(s)/int(s)')
         if capsule and length <= sum(rd):
             raise ValueError('length has to be > radius * 2 or sum(radius)')
         if not (0.0 <= origin_offset <= 1.0):
@@ -438,7 +441,7 @@ class ShapeGen(object):
         msh = mesh.Mesh(name or 'box')
         self._draw.setup(core.Vec3(0), core.Vec3.forward())
 
-        max_seg_len = min(bounds - corner_radius) / 4
+        max_seg_len = max_seg_len or min(bounds - corner_radius) / 4
         b_seg_count = core.LVecBase3i(
             *map(int, map(
                     ceil, (bounds - corner_radius) / max_seg_len
@@ -501,12 +504,14 @@ class ShapeGen(object):
             ))
             z_x_m = np.concatenate((
                 top_x_m,
-                1.0 / bounds.x * (bounds.x - corner_radius + sin_quart * corner_radius),
+                1.0 / bounds.x * (
+                        bounds.x - corner_radius + sin_quart * corner_radius),
                 np.ones(z_seg_count)
             ))
             z_y_m = np.concatenate((
                 top_y_m,
-                1.0 / bounds.y * (bounds.y - corner_radius + sin_quart * corner_radius),
+                1.0 / bounds.y * (
+                        bounds.y - corner_radius + sin_quart * corner_radius),
                 np.ones(z_seg_count)
             ))
         else:
@@ -559,7 +564,8 @@ class ShapeGen(object):
             face_normals=not smooth,
             sharp_angle=sharp_angle,
             nac=nac,
-            transform=self._draw.transform_mat
+            transform=self._draw.transform_mat,
+            no_texcoord=True
         )
 
     @staticmethod

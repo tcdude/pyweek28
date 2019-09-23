@@ -26,5 +26,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from panda3d import core
+
+
 # constants for debugging purposes
 NAC = True
+
+# colors
+FIR_TRUNK_START = core.Vec3(0.19, 0.11, 0.01)
+FIR_TRUNK_DELTA = core.Vec3(0.49, 0.3, 0.05) * 0.2
+FIR_BRANCH_START = core.Vec3(0.0, 0.23, 0.05)
+FIR_BRANCH_DELTA = core.Vec3(0.09, 0.49, 0.2)

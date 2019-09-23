@@ -34,6 +34,8 @@ from direct.showbase.ShowBase import ShowBase
 from panda3d import core
 
 from .shapegen import shape
+from . import character
+from . import flora
 
 
 def rand_vec3(vmin, vmax, vec_type=core.Vec3):
@@ -45,7 +47,7 @@ def rand_vec3(vmin, vmax, vec_type=core.Vec3):
 
 
 def rand_cs():
-    origin = rand_vec3(-1000, 1000)  # core.Vec3(0)
+    origin = rand_vec3(-200, 200)  # core.Vec3(0)
     direction = rand_vec3(-1, 1).normalized()  # core.Vec3(0, 1, 0)
     return direction, origin
 
@@ -61,8 +63,10 @@ class GameApp(ShowBase):
         self.accept('s', self.add_sphere)
         self.accept('c', self.add_cone)
         self.accept('b', self.add_box)
+        self.accept('t', self.add_tree)
         self.accept('escape', sys.exit, [0])
         self.accept('f1', self.toggle_wireframe)
+        self.char = character.Character(self)
 
     def add_sphere(self):
         radius = random.uniform(4.0, 40.0)
@@ -137,3 +141,8 @@ class GameApp(ShowBase):
                 smooth=True
             )
         )
+
+    def add_tree(self):
+        tree = flora.fir_tree()
+        tree.reparent_to(self.render)
+        tree.set_pos(rand_cs()[1])

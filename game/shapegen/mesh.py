@@ -95,7 +95,8 @@ class Mesh(object):
             avg_color=True,
             sharp_angle=80.0,
             nac=common.NAC,
-            transform=None
+            transform=None,
+            no_texcoord=False
     ):
         """
         Return a Panda Node of the mesh.
@@ -110,8 +111,9 @@ class Mesh(object):
             nac: if True ignores the vertex color and uses the
                 normal vector as color (helpful for debugging)
             transform: transformation to apply to GeomVertexData.
+            no_texcoord:
         """
-        va = util.VertArray(self._name)
+        va = util.VertArray(self._name, no_texcoord)
 
         if face_normals:  # flat shading
             # noinspection PyArgumentList
@@ -199,6 +201,8 @@ class Mesh(object):
             color:
             texcoord:
         """
+        if color.num_components == 3:
+            color = core.Vec4(*tuple(color), 1)
         self._vts[self._vid] = Vertex(self._vid, point, color, texcoord)
         self._vid += 1
         return self._vid - 1
