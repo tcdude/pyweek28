@@ -1,5 +1,5 @@
 """
-Provides various utility functions.
+Provides various utility functions and classes.
 """
 
 __copyright__ = """
@@ -29,6 +29,8 @@ SOFTWARE.
 
 import numpy as np
 
+from panda3d import core
+
 
 def comp_triangle_normal(pa, pb, pc, normalized=True):
     """Return triangle face normal for ccw wound triangle pa, pb, pc"""
@@ -45,7 +47,7 @@ def _triangle_line_connect(upper, lower, wrap_around, ccw):
     steps = max(upper, lower)
     upper_edges = np.linspace(0, upper, steps, endpoint=False, dtype=np.int32)
     lower_edges = np.linspace(0, lower, steps, endpoint=False, dtype=np.int32)
-    if not ccw:
+    if ccw:
         upper_edges = upper_edges[::-1]
         lower_edges = lower_edges[::-1]
 
@@ -92,10 +94,48 @@ def triangle_line_connect(upper, lower, wrap_around=True, ccw=True):
     Args:
         upper: length of the upper line (num vertices)
         lower: length of the lower line (num vertices)
-        wrap_around: whether the last vertice should connect back to the first
+        wrap_around: whether the last vertex should connect back to the first
         ccw: whether the lines are in ccw order
     """
     k = (upper, lower, wrap_around, ccw)
     if k not in _tlc_cache:
         _tlc_cache[k] = _triangle_line_connect(*k)
     return _tlc_cache[k]
+
+
+# noinspection PyArgumentList
+class VertArray(object):
+    def __init__(self, name='noname'):
+        self._name = name
+        self._vdata = core.GeomVertexData(
+            self._name,
+            core.GeomVertexFormat.get_v3n3c4t2(),
+            core.Geom.UH_static
+        )
+        self._vwriter = core.GeomVertexWriter(self._vdata, 'vertex')
+        self._nwriter = core.GeomVertexWriter(self._vdata, 'normal')
+        self._cwriter = core.GeomVertexWriter(self._vdata, 'color')
+        self._twriter = core.GeomVertexWriter(self._vdata, 'texcoord')
+        self._prim = core.GeomTriangles(core.Geom.UH_static)
+
+        self._v_id = 0
+        self.set_num_rows = self._vdata.set_num_rows
+
+    def add_row(self, point, normal, color, tex):
+        self._vwriter.add_data3(point)
+        self._nwriter.add_data3(normal)
+        self._cwriter.add_data4(color)
+        self._twriter.add_data2(tex)
+        self._v_id += 1
+        return self._v_id - 1
+
+    def add_triangle(self, va, vb, vc):
+        self._prim.add_vertices(va, vb, vc)
+
+    @property
+    def node(self):
+        geom = core.Geom(self._vdata)
+        geom.add_primitive(self._prim)
+        node = core.GeomNode(self._name)
+        node.add_geom(geom)
+        return node
