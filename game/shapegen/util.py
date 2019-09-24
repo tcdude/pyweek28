@@ -26,7 +26,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-
 import numpy as np
 
 from panda3d import core
@@ -62,13 +61,13 @@ def _triangle_line_connect(upper, lower, wrap_around, ccw):
             triangles.append(
                 (
                     (upper_edges[id1], upper_edges[id2]),
-                    (lower_edges[id1], )
+                    (lower_edges[id1],)
                 )
             )
             if l_edge:
                 triangles.append(
                     (
-                        (upper_edges[id2], ),
+                        (upper_edges[id2],),
                         (lower_edges[id2], lower_edges[id1])
                     )
                 )
@@ -77,7 +76,7 @@ def _triangle_line_connect(upper, lower, wrap_around, ccw):
         if l_edge:
             triangles.append(
                 (
-                    (upper_edges[id1], ),
+                    (upper_edges[id1],),
                     (lower_edges[id2], lower_edges[id1])
                 )
             )
@@ -155,3 +154,174 @@ class VertArray(object):
         node = core.GeomNode(self._name)
         node.add_geom(geom)
         return node
+
+
+UL = 0
+UR = 1
+DL = 2
+DR = 3
+
+
+class AABB(object):
+    def __init__(self, origin, bb):
+        # type: (core.Vec2, core.Vec2) -> None
+        self.origin = origin
+        self.bb = bb
+
+    def intersect_point(self, point):
+        d = core.Vec2(*map(abs, point - self.origin))
+        return d.x <= self.bb.x and d.y <= self.bb.y
+
+    def intersect_aabb(self, aabb):
+        d = aabb.origin.x - self.origin.x
+        p = (aabb.bb.x + self.bb.x) - abs(d)
+        if p <= 0:
+            return False
+        d = aabb.origin.y - self.origin.y
+        p = (aabb.bb.y + self.bb.y) - abs(d)
+        if p <= 0:
+            return False
+        return True
+
+    def get_child_id(self, point):
+        d = point - self.origin
+        if d.x <= 0:
+            if d.y <= 0:
+                return DL
+            return UL
+        if d.y <= 0:
+            return DR
+        return UR
+
+    def get_child_aabb(self):
+        hbb = self.bb / 2
+        return [
+            AABB(self.origin + core.Vec2(-hbb.x, hbb.y), hbb),
+            AABB(self.origin + core.Vec2(hbb.x, hbb.y), hbb),
+            AABB(self.origin + core.Vec2(-hbb.x, -hbb.y), hbb),
+            AABB(self.origin + core.Vec2(hbb.x, -hbb.y), hbb)
+        ]
+
+
+class QuadNode(object):
+    def __init__(self, aabb, depth, max_leaf_nodes):
+        self.aabb = aabb
+        self.children = {i: None for i in range(4)}
+        self.leafs = []
+        self.depth = depth
+        self.max_leaf_nodes = max_leaf_nodes
+
+    def insert_leaf(self, point, data):
+        """Return True on success, otherwise the node has to be split."""
+        if len(self.leafs) > self.max_leaf_nodes or not self.depth:
+            self.leafs.append(QuadTree.insert_node(QuadElement(point, data)))
+            return True
+        return False
+
+    @property
+    def is_leaf_node(self):
+        return self.children[0] is None
+
+
+class QuadElement(object):
+    def __init__(self, point, data):
+        self.point = point
+        self.data = data
+
+
+class QuadTree(object):
+    def __init__(self, origin, bounds, max_depth=8, max_leaf_nodes=4):
+        self.aabb = AABB(origin, bounds)
+        self.max_depth = max_depth
+        self.max_leaf_nodes = max_leaf_nodes
+        self.root = QuadTree.insert_node(
+            QuadNode(self.aabb, max_depth, max_leaf_nodes)
+        )
+
+    def insert(self, point, data):
+        if not self.aabb.intersect_point(point):
+            raise ValueError('point is outside the bounding box')
+        chk_node = QuadTree.get_node(self.root)
+        while True:
+            if chk_node.insert_leaf(point, data):
+                return
+            for i, aabb in enumerate(chk_node.aabb.get_child_aabb()):
+                chk_node.children[i] = QuadTree.insert_node(
+                    QuadNode(
+                        aabb,
+                        chk_node.depth - 1,
+                        self.max_leaf_nodes
+                    )
+                )
+            for i in chk_node.leafs:
+                n = QuadTree.get_node(i)
+                child_id = chk_node.aabb.get_child_id(n.point)
+                QuadTree.get_node(chk_node.children[child_id]).leafs.append(i)
+            chk_node.leafs = []
+            chk_node = QuadTree.get_node(
+                chk_node.children[chk_node.aabb.get_child_id(point)]
+            )
+
+    def query(self, aabb):
+        if not self.aabb.intersect_aabb(aabb):
+            raise ValueError('aabb does not intersect with the QuadTree aabb')
+        results = []
+        chk_nodes = [self.root]
+        while chk_nodes:
+            chk_node = QuadTree.get_node(chk_nodes.pop())
+            if chk_node.is_leaf_node:
+                for n in chk_node.leafs:
+                    el = QuadTree.get_node(n)
+                    if aabb.intersect_point(el.point):
+                        results.append(el.data)
+            else:
+                chk_nodes += [nid for nid in chk_node.children.values()]
+        return results
+
+    def remove(self, point, data):
+        chk_node = self._find_leaf_node(point)
+        for i in chk_node.leafs:
+            el = QuadTree.get_node(i)
+            if el.point == point and el.data == data:
+                QuadTree.remove_node(i)
+                return True
+        raise RuntimeError('node could be removed. not found')
+
+    def move(self, from_point, to_point, data):
+        self.remove(from_point, data)
+        self.insert(to_point, data)
+
+    def _find_leaf_node(self, point):
+        if not self.aabb.intersect_point(point):
+            raise ValueError('point is outside the bounding box')
+        chk_node = QuadTree.get_node(self.root)
+        while True:
+            if chk_node.is_leaf_node:
+                return chk_node
+            else:
+                chk_node = QuadTree.get_node(
+                    chk_node.children[chk_node.aabb.get_child_id(point)]
+                )
+
+    # class attrs and methods
+
+    nodes = {}
+    node_id = 0
+    free_list = []
+
+    @classmethod
+    def insert_node(cls, node):
+        nid = cls.free_list.pop() if cls.free_list else cls.node_id
+        cls.nodes[nid] = node
+        if nid == cls.node_id:
+            cls.node_id += 1
+        return nid
+
+    @classmethod
+    def get_node(cls, node_id):
+        return cls.nodes[node_id]
+
+    @classmethod
+    def remove_node(cls, node_id):
+        cls.free_list.append(node_id)
+        cls.nodes[node_id] = None
