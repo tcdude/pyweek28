@@ -31,6 +31,14 @@ import numpy as np
 from panda3d import core
 
 
+def clamp_angle(deg):
+    while deg < -180:
+        deg += 360
+    while deg > 180:
+        deg -= 360
+    return deg
+
+
 def comp_triangle_normal(pa, pb, pc, normalized=True):
     """Return triangle face normal for ccw wound triangle pa, pb, pc"""
     u = pb - pa
@@ -169,8 +177,8 @@ class AABB(object):
         self.bb = bb
 
     def intersect_point(self, point):
-        d = core.Vec2(*map(abs, point - self.origin))
-        return d.x <= self.bb.x and d.y <= self.bb.y
+        d = point - self.origin
+        return abs(d.x) <= self.bb.x and abs(d.y) <= self.bb.y
 
     def intersect_aabb(self, aabb):
         d = aabb.origin.x - self.origin.x
@@ -202,6 +210,12 @@ class AABB(object):
             AABB(self.origin + core.Vec2(hbb.x, -hbb.y), hbb)
         ]
 
+    def __repr__(self):
+        return f'{repr(self.origin)}, {repr(self.bb)}'
+
+    def __str__(self):
+        return repr(self)
+
 
 class QuadNode(object):
     def __init__(self, aabb, depth, max_leaf_nodes):
@@ -213,7 +227,7 @@ class QuadNode(object):
 
     def insert_leaf(self, point, data):
         """Return True on success, otherwise the node has to be split."""
-        if len(self.leafs) > self.max_leaf_nodes or not self.depth:
+        if len(self.leafs) < self.max_leaf_nodes or self.depth == 0:
             self.leafs.append(QuadTree.insert_node(QuadElement(point, data)))
             return True
         return False

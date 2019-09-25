@@ -36,7 +36,13 @@ from . import common
 
 
 # noinspection PyArgumentList
-def fir_tree(avg_height=40, avg_segments=6, avg_radius=1.0, offset=0.6):
+def fir_tree(
+        avg_height=40,
+        avg_segments=6,
+        avg_radius=1.0,
+        offset=0.6,
+        tex=None
+):
     height = random.uniform(
         (1.0 - offset) * avg_height,
         (1.0 + offset) * avg_height
@@ -57,7 +63,7 @@ def fir_tree(avg_height=40, avg_segments=6, avg_radius=1.0, offset=0.6):
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
             radius=(trunk_radius, 0),
-            polygon=20,
+            polygon=12,
             length=height,
             origin_offset=0.05,
             color=trunk_color,
@@ -66,6 +72,8 @@ def fir_tree(avg_height=40, avg_segments=6, avg_radius=1.0, offset=0.6):
         )
     )
     trunk_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
+    if tex is not None:
+        trunk_np.set_texture(tex, 1)
     seg_height = height * 0.8 / segments
     seg_start = height * 0.2
     for i, bc in enumerate(branch_colors):
@@ -79,19 +87,19 @@ def fir_tree(avg_height=40, avg_segments=6, avg_radius=1.0, offset=0.6):
                 (segments - i - 1) * trunk_radius * 0.8
             ) if i < segments - 1 else 0,
         )
-        br_np = trunk_np.attach_new_node(
+        br_np = np.attach_new_node(
             sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.up(),
                 radius=radius,
-                polygon=30,
+                polygon=16,
                 length=seg_height,
                 color=bc,
                 nac=False,
                 name=f'fir_tree/branch{i}'
             )
         )
-        br_np.set_z(seg_start + seg_height * 0.5 + i * seg_height)
+        br_np.set_z(trunk_np, seg_start + seg_height * 0.5 + i * seg_height)
         br_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
 
     return np

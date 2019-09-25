@@ -125,7 +125,7 @@ class Mesh(object):
                 elif avg_color:
                     c = core.Vec3(0, 0, 0)
                     for v in t:
-                        c += v.color
+                        c += v.color.xyz
                     c = core.Vec4(*tuple(c / 3), 1)
                 triangle = [
                     va.add_row(v.point, t.normal, c or v.color, v.texcoord)

@@ -568,6 +568,14 @@ class ShapeGen(object):
             no_texcoord=True
         )
 
+    def blob(
+            self,
+            origin,
+            direction,
+
+    ):
+        pass
+
     @staticmethod
     def _populate_triangles(msh, verts, wrap, ccw=True, chk_illegal=False):
         for i in range(len(verts) - 1):

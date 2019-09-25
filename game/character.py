@@ -30,33 +30,143 @@ from math import pi
 
 from panda3d import core
 # noinspection PyPackageRequirements
-from direct.interval.LerpInterval import LerpHprInterval
+from direct.interval.LerpInterval import *
+# noinspection PyPackageRequirements
+from direct.interval.IntervalGlobal import *
 
 from .shapegen import shape
+from . import common
 
 
 class Character(object):
-    def __init__(self, root, wheel_radius=0.35, root_node=None):
+    def __init__(self, root, w_radius=0.35, w_offset=0.49, root_node=None):
         self.root = root
-        self.wheel_radius = wheel_radius
-        self.wheel_circumference = 2 * pi * wheel_radius
+        self.wheel_circumference = 2 * pi * w_radius
+        self.unit_to_deg = 360 / self.wheel_circumference
+        self.turn_distance = 2 * pi * w_offset
+        self.turn_to_wheel_deg = self.turn_distance / self.wheel_circumference * 360
         self.char = root_node or root.render.attach_new_node('Character')
-        self.left_wheel = self.char.attach_new_node('lw')
-        self.right_wheel = self.char.attach_new_node('rw')
-        self.body = self.char.attach_new_node('body')
-        self.head = self.char.attach_new_node('head')
-        LerpHprInterval(self.left_wheel, 1, (0, -360, 0)).loop()
-        LerpHprInterval(self.right_wheel, 1, (0, -360, 0)).loop()
-        self.setup_nodes()
+        self.fw_pitch = self.char.attach_new_node('fw_pitch')
+        self.sw_pitch = self.fw_pitch.attach_new_node('sw_pitch')
+        self.sw_pitch.set_h(-90)
+        self._body_base = self.sw_pitch.attach_new_node('body_base')
+        self._body_base.set_h(90)
+        self.left_wheel = self._body_base.attach_new_node('lw')
+        self.right_wheel = self._body_base.attach_new_node('rw')
+        self.body = self._body_base.attach_new_node('body')
+        self.head = self._body_base.attach_new_node('head')
+        self.setup_nodes(w_radius, w_offset)
+        # self.char.set_h(180)
+        self.speed = 0
+        self._fw = 0
+        self._rot = 0
+        self._z = 0
+        self.animate()
+
+    @property
+    def forward(self):
+        return self._fw
+
+    @forward.setter
+    def forward(self, value):
+        self._fw = value
+
+    @property
+    def rotation(self):
+        return self._rot
+
+    @rotation.setter
+    def rotation(self, value):
+        self._rot = value
+
+    @property
+    def z(self):
+        return self._z
+
+    @z.setter
+    def z(self, value):
+        self._z = value
+
+    @property
+    def node_path(self):
+        return self.char
+
+    def move(self, dt):
+        abs_speed = abs(self.speed)
+        speed_delta = 0
+        if self._fw:
+            if self._fw > 0:
+                speed_delta = dt * common.ACCELERATION
+            else:
+                speed_delta = dt * -common.ACCELERATION
+        elif not self._fw and self.speed != 0:
+            if self.speed > 0:
+                speed_delta = dt * -common.BREAKING
+            else:
+                speed_delta = dt * common.BREAKING
+
+        self.speed = max(
+            min(self.speed + speed_delta, common.MAX_SPEED),
+            -common.MAX_SPEED
+        )
+
+        lw_rot = 0
+        rw_rot = 0
+        if self._rot:
+            if self._rot > 0:
+                rotation = dt * common.ROTATION_SPEED
+            else:
+                rotation = dt * -common.ROTATION_SPEED
+            if self.speed >= 0:
+                lw_rot += rotation * self.turn_to_wheel_deg
+                rw_rot -= rotation * self.turn_to_wheel_deg
+            else:
+                lw_rot -= rotation * self.turn_to_wheel_deg
+                rw_rot += rotation * self.turn_to_wheel_deg
+            self.char.set_h(self.char, rotation)
+
+        if speed_delta:
+            dist = self.speed * dt
+            lw_rot -= dist * self.unit_to_deg
+            rw_rot -= dist * self.unit_to_deg
+            self.char.set_y(self.char, dist)
+            self.fw_pitch.set_p(-self.speed * common.PITCH_SPEED)
+            self.root.update_z(self.char)
+
+        if lw_rot or rw_rot:
+            self.left_wheel.set_p(self.left_wheel, lw_rot)
+            self.right_wheel.set_p(self.right_wheel, rw_rot)
+
+    def animate(self):
+        Sequence(
+            LerpPosHprInterval(
+                self.head, 0.6, (0.03, 0, 0.05), (8, -4, 0),
+                blendType='easeInOut'),
+            LerpPosHprInterval(
+                self.head, 0.6, (0, 0, 0), (0, 0, 0), blendType='easeInOut'),
+            LerpPosHprInterval(
+                self.head, 0.6, (-0.03, 0, 0.05), (8, -4, 0),
+                blendType='easeInOut'),
+            LerpPosHprInterval(
+                self.head, 0.6, (0, 0, 0), (0, 0, 0), blendType='easeInOut'),
+        ).loop()
+        Sequence(
+            LerpHprInterval(
+                self.body, 0.5, (0, -2, 0), blendType='easeInOut'),
+            LerpHprInterval(
+                self.body, 1, (0, 2, 0), blendType='easeInOut'),
+            LerpHprInterval(
+                self.body, 0.5, (0, 0, 0), blendType='easeInOut'),
+        ).loop()
 
     # noinspection PyArgumentList
-    def setup_nodes(self):
+    def setup_nodes(self, w_radius, w_offset):
         sg = shape.ShapeGen()
         lw = self.left_wheel.attach_new_node(
             sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.left(),
-                radius=self.wheel_radius,
+                radius=w_radius,
                 polygon=18,
                 length=0.2,
                 origin_offset=0,
@@ -66,14 +176,14 @@ class Character(object):
                 name='left_wheel'
             )
         )
-        self.left_wheel.set_pos(-0.49, 0, self.wheel_radius)
+        self.left_wheel.set_pos(-w_offset, 0, w_radius)
         tex = self.root.loader.load_texture('wood.jpg')
         lw.set_texture(tex, 1)
         rw = self.right_wheel.attach_new_node(
             sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.right(),
-                radius=self.wheel_radius,
+                radius=w_radius,
                 polygon=18,
                 length=0.2,
                 origin_offset=0,
@@ -83,7 +193,7 @@ class Character(object):
                 name='right_wheel'
             )
         )
-        self.right_wheel.set_pos(0.49, 0, self.wheel_radius)
+        self.right_wheel.set_pos(w_offset, 0, w_radius)
         rw.set_texture(tex, 1)
         self.body.attach_new_node(
             sg.cone(
@@ -103,27 +213,42 @@ class Character(object):
         self.body.set_pos(0, 0, 0.1)
         self.body.set_texture(tex, 1)
         hd = self.head.attach_new_node(
-            sg.box(
+            sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.up(),
-                bounds=core.Vec3(0.3, 0.25, 0.42),
-                max_seg_len=0.1,
-                corner_radius=0.1,
-                smooth=True,
+                radius=(0.21, 0.2),
+                polygon=11,
+                length=0.5,
+                smooth=False,
+                capsule=False,
+                name='head',
                 color=core.Vec4(1),
                 nac=False
             )
         )
-        self.head.set_pos(0, 0, 1.7)
-        hd.flatten_light()
-        hd.set_tex_gen(
-            core.TextureStage.get_default(),
-            core.TexGenAttrib.M_world_position
-        )
-        hd.set_tex_projector(
-            core.TextureStage.get_default(),
-            self.root.render,
-            hd
-        )
-        hd.set_tex_scale(core.TextureStage.get_default(), 1e-8)
+        hd.set_pos(0, 0, 1.62)
         hd.set_texture(tex, 2)
+        eye = hd.attach_new_node(
+            sg.sphere(
+                origin=core.Vec3(0),
+                direction=core.Vec3.up(),
+                radius=0.07,
+                polygon=12,
+                name='eye',
+                color=core.Vec4(0),
+                nac=False
+            )
+        )
+        eye.set_pos(-0.15, 0.15, 0)
+        eye = hd.attach_new_node(
+            sg.sphere(
+                origin=core.Vec3(0),
+                direction=core.Vec3.up(),
+                radius=0.07,
+                polygon=12,
+                name='eye',
+                color=core.Vec4(0),
+                nac=False
+            )
+        )
+        eye.set_pos(0.15, 0.15, 0)

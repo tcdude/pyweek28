@@ -1,0 +1,159 @@
+"""
+Some noise experiments...
+"""
+
+__copyright__ = """
+MIT License
+
+Copyright (c) 2019 tcdude
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
+import random
+
+import numpy as np
+from panda3d import core
+import pyfastnoisesimd as fns
+from PIL import Image
+
+from .. import common
+
+
+class Noise(object):
+    def __init__(self, seed=None):
+        self.seed = seed
+        self.fns = None
+        sl = common.T_XY + common.T_XY % 2
+        self.terrain_grid = [1, sl, sl]
+
+    def woods(self):
+        self.setup_fns(
+            noise_type=common.WN_TYPE,
+            cell_distance_func=common.WN_DIST_FUNC,
+            cell_return_type=common.WN_RET_TYPE,
+            fractal_octaves=common.WN_FRACTAL_OCT
+        )
+        c = self.fns.genAsGrid(self.terrain_grid)[0]
+        c = c[:common.T_XY, :common.T_XY]
+        c = (common.W_CELL_TYPE_COUNT - 1) / (c.max() - c.min()) * (c - c.min())
+        self.fns.cell.returnType = fns.CellularReturnType.Distance2Div
+        b = self.fns.genAsGrid(self.terrain_grid)[0]
+        b = b[:common.T_XY, :common.T_XY]
+        b = 1 / (b.max() - b.min()) * (b - b.min())
+        b = b ** 2 > common.W_BOUND_CLIP
+        filter = np.zeros(c.shape)
+        wood_cells = random.sample(
+            range(common.W_CELL_TYPE_COUNT),
+            common.W_WOOD_CELL_COUNT
+        )
+        for i in wood_cells:
+            gt = c >= i
+            lt = c < i + 1
+            f = gt * lt
+            filter[f] = 1
+        filter[b] = 0
+        # Image.fromarray(filter.astype(np.uint8) * 255).show()
+        return filter, b
+
+    def terrain(self):
+        self.setup_fns(
+            noise_type=common.N_TYPE,
+            frequency=common.N_FREQ,
+            fractal_octaves=common.N_FRACTAL_OCT,
+            fractal_gain=common.N_FRACTAL_GAIN,
+            fractal_lacunarity=common.N_FRACTAL_LAC,
+            perturb_type=common.N_PERT_TYPE,
+            perturb_octaves=common.N_PERT_OCT,
+            perturb_amp=common.N_PERT_AMP,
+            perturb_frequency=common.N_PERT_FREQ,
+            perturb_lacunarity=common.N_PERT_LAC,
+            perturb_gain=common.N_PERT_GAIN
+        )
+        hf = self.fns.genAsGrid(self.terrain_grid)[0]
+        hf = hf[:common.T_XY, :common.T_XY]
+        hf = 1 / (hf.max() - hf.min()) * (hf - hf.min())
+        f = core.TemporaryFile(core.Filename('assets', 'terrain.png'))
+        im = Image.fromarray((hf * 255).astype(np.uint8))
+        # im.show()
+        im.save(f.get_filename().get_fullpath())
+        return hf, f
+
+    def setup_fns(
+            self,
+            noise_type=fns.NoiseType.Simplex,
+            frequency=0.01,
+            fractal_type=fns.FractalType.FBM,
+            fractal_octaves=3,
+            fractal_gain=0.5,
+            fractal_lacunarity=2.0,
+            perturb_type=fns.PerturbType.NoPerturb,
+            perturb_octaves=3,
+            perturb_frequency=0.5,
+            perturb_amp=1.0,
+            perturb_gain=0.5,
+            perturb_lacunarity=2.0,
+            perturb_normalise_length=1.0,
+            cell_distance_func=fns.CellularDistanceFunction.Euclidean,
+            cell_distance_indices=(0, 1),
+            cell_jitter=0.45,
+            cell_lookup_frequency=0.2,
+            cell_noise_lookup_type=fns.NoiseType.Simplex,
+            cell_return_type=fns.CellularReturnType.Distance,
+            seed=None
+    ):
+        self.fns = fns.Noise(seed or self.seed)
+        self.fns.noiseType = noise_type
+        self.fns.frequency = frequency
+        self.fns.fractal.fractalType = fractal_type
+        self.fns.fractal.octaves = fractal_octaves
+        self.fns.fractal.gain = fractal_gain
+        self.fns.fractal.lacunarity = fractal_lacunarity
+        self.fns.perturb.perturbType = perturb_type
+        self.fns.perturb.octaves = perturb_octaves
+        self.fns.perturb.frequency = perturb_frequency
+        self.fns.perturb.amp = perturb_amp
+        self.fns.perturb.gain = perturb_gain
+        self.fns.perturb.lacunarity = perturb_lacunarity
+        self.fns.perturb.normaliseLength = perturb_normalise_length
+        self.fns.cell.distanceFunc = cell_distance_func
+        self.fns.cell.distanceIndices = cell_distance_indices
+        self.fns.cell.jitter = cell_jitter
+        self.fns.cell.lookupFrequency = cell_lookup_frequency
+        self.fns.cell.noiseLookupType = cell_noise_lookup_type
+        self.fns.cell.returnType = cell_return_type
+
+
+def noise1d(x, seed=None, octaves=4, d=0.5, normalized=False):
+    if not (0 < d < 1):
+        raise ValueError('expected 0 < d < 1')
+    if seed is not None:
+        np.random.seed(seed)
+    base = np.random.random(x)
+    oct_f = [d ** (i + 1) for i in range(octaves)]
+    r = np.zeros(x)
+    r += base[0]
+    s = 2 ** octaves
+    for i, f in enumerate(oct_f):
+        r[::s] += f * base[::s]
+        s = max(s // 2, 1)
+    r /= sum(oct_f) + 1
+    if normalized:
+        r = 1.0 / (r.max() - r.min()) * (r - r.min())
+    return r
