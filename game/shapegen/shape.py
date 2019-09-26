@@ -35,6 +35,7 @@ from panda3d import core
 
 from . import draw
 from . import mesh
+from . import noise
 from . import util
 from .. import common
 
@@ -42,6 +43,7 @@ from .. import common
 class ShapeGen(object):
     def __init__(self):
         self._draw = draw.Draw()
+        self._noise = noise.Noise()
 
     def sphere(
             self,
@@ -572,9 +574,199 @@ class ShapeGen(object):
             self,
             origin,
             direction,
-
+            bounds,
+            smooth=True,
+            sharp_angle=80.0,
+            color=core.Vec4(1),
+            color2=None,
+            nac=common.NAC,
+            seed=None,
+            noise_radius=6.0,
+            noise_frequency=0.001,
+            name=None
     ):
-        pass
+        """
+        Return a random blob that fits inside specified bounds.
+
+        Args:
+            origin:
+            direction:
+            bounds:
+            smooth:
+            sharp_angle:
+            color:
+            color2: if specified, mixes the two colors by noise
+            nac:
+            seed:
+            noise_radius:
+            noise_frequency:
+            name:
+        """
+        msh = mesh.Mesh(name or 'blob')
+        self._draw.setup(origin, direction)
+        seg_len = min(bounds) / 2
+        segments = core.LVecBase3i(*map(int, bounds / seg_len)) + 1
+        h_segments = (sum(segments.xy) - 2) * 2
+        p_segments = h_segments // 2 + 1
+        h_n, p_n, r_n, c_n = self._noise.blob(
+            h_segments, p_segments, 4, noise_radius, seed, noise_frequency
+        )
+        c_n = [1 / (c.max() - c.min()) * (c - c.min()) for c in c_n]
+        base_r = np.average(r_n[0])
+        top_r = np.average(r_n[-1])
+        base_c = np.average(c_n[0])
+        top_c = np.average(c_n[-1])
+        p_steps = np.linspace(-90, 90, p_segments)
+        p_step = (p_steps[1] - p_steps[0]) * 0.9
+        h_steps = np.linspace(0, 360, h_segments, endpoint=False)
+        h_step = (h_steps[1] - h_steps[0]) * 0.9
+        verts = []
+        for pid, p in enumerate(p_steps):
+            if abs(p) == 90:
+                r = base_r if p == -90 else top_r
+                r = bounds.z + r * bounds.z
+                self._draw.set_hp_r(0, p, r)
+                if color2 is None:
+                    c = color
+                else:
+                    f = base_c if p == -90 else top_c
+                    c = f * color + (1 - f) * color2
+                    c = core.Vec4(*c)
+                verts.append([msh.add_vertex(self._draw.point, c)])
+                continue
+            # af = pid * h_segments
+            # at = af + h_segments
+            twopi = np.linspace(0, 2 * np.pi, h_segments, endpoint=False)
+            zp = (
+                h_steps,
+                h_n[pid],
+                p_n[pid],
+                r_n[pid],
+                c_n[pid],
+                np.abs(np.cos(twopi)),
+                np.abs(np.sin(twopi))
+            )
+            verts.append([])
+            sin_p = abs(np.sin(np.radians(p)))
+            cos_p = abs(np.cos(np.radians(p)))
+            rz = sin_p * bounds.z
+            for h, ho, po, ro, c, cos_h, sin_h in zip(*zp):
+                rx = cos_h * bounds.x
+                ry = sin_h * bounds.y
+                r_h = np.sqrt(rx ** 2 + ry ** 2) * cos_p
+                r = np.sqrt(r_h ** 2 + rz ** 2)
+                self._draw.set_hp_r(
+                    h + ho * h_step,
+                    p + po * p_step,
+                    r + r * ro
+                )
+                if color2 is None:
+                    col = color
+                else:
+                    col = c * color + (1 - c) * color2
+                    col = core.Vec4(*col)
+                verts[-1].append(
+                    msh.add_vertex(self._draw.point, col)
+                )
+        self._populate_triangles(msh, verts, wrap=True)
+        return msh.export(
+            face_normals=not smooth,
+            sharp_angle=sharp_angle,
+            nac=nac
+        )
+
+    def elliptic_cone(
+            self,
+            a,
+            b,
+            h,
+            max_seg_len=1.0,
+            exp=2.0,
+            top_xy=(0, 0),
+            color=core.Vec4(1),
+            nac=common.NAC,
+            name=None,
+    ):
+        """
+        Return the shape used for the Devils Tower mountain. Features must be
+        put on via normal map.
+
+        Args:
+            a: 2-Tuple base and top a for the ellipse
+            b: 2-Tuple base and top b for the ellipse
+            h: height
+            max_seg_len: maximum segment length (approximation)
+            exp: exponent used to determine slope from base to top
+            top_xy: displacement between base and top on the xy-plane.
+            color:
+            nac:
+            name:
+        """
+        if a[0] == a[1]:
+            a = a[0], a[1] * 1.0001
+        if b[0] == b[1]:
+            b = b[0], b[1] * 1.0001
+
+        msh = mesh.Mesh(name or 'devils_tower')
+        h_seg_len = np.sqrt((max_seg_len ** 2) / 2)
+        base_perimeter = 2 * np.pi * np.sqrt((a[0] ** 2 + b[0] ** 2) / 2)
+        top_perimeter = 2 * np.pi * np.sqrt((a[1] ** 2 + b[1] ** 2) / 2)
+        if base_perimeter >= top_perimeter:
+            el_points = int(base_perimeter / h_seg_len) + 1
+        else:
+            el_points = int(top_perimeter / h_seg_len) + 1
+        ellipse = util.ellipse(a[1], b[1], el_points)
+        el_points *= 4
+        h_st = int(h / max_seg_len) + 1
+        z_st = np.linspace(0, h, h_st)
+        u_st = np.linspace(1, 0, el_points + 1)
+        v_off = 1 / (max(max(a), max(b)) + h) * h
+        v_st = np.linspace(0, v_off, h_st)
+        slope = np.linspace(1, 0, h_st) ** exp
+
+        a_delta = a[1] - a[0]
+        b_delta = b[1] - b[0]
+        sl_a = slope * a_delta
+        sl_b = slope * b_delta
+        sl_x = (1 - slope) * top_xy[0]
+        sl_y = (1 - slope) * top_xy[1]
+
+        verts = []
+        for sa, sb, sx, sy, z, v in zip(sl_a, sl_b, sl_x, sl_y, z_st, v_st):
+            verts.append([])
+            el = ellipse * 1
+            af = (a[1] - sa) / a[1]
+            bf = (b[1] - sb) / b[1]
+            el[:, 0] = el[:, 0] * af + sx
+            el[:, 1] = el[:, 1] * bf + sy
+            for i in range(el_points + 1):
+                el_i = i % el_points
+                verts[-1].append(
+                    msh.add_vertex(
+                        core.Vec3(*el[el_i], z),
+                        color,
+                        core.Vec2(u_st[i], v)
+                    )
+                )
+
+        verts.append([])
+        el = ellipse * 0.5
+        for i in range(el_points + 1):
+            el_i = i % el_points
+            verts[-1].append(
+                msh.add_vertex(
+                    core.Vec3(*el[el_i], h * 1.005),
+                    color,
+                    core.Vec2(u_st[i], 1 - (1 - v_off) / 2)
+                )
+            )
+        verts.append([msh.add_vertex(
+            core.Vec3(*top_xy, h * 1.012),
+            color,
+            core.Vec2(1)
+        )])
+        self._populate_triangles(msh, verts, wrap=False)
+        return msh.export(face_normals=False, nac=nac, tangent=True)
 
     @staticmethod
     def _populate_triangles(msh, verts, wrap, ccw=True, chk_illegal=False):

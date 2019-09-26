@@ -26,6 +26,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from typing import Union
 import random
 
 import numpy as np
@@ -39,9 +40,40 @@ from .. import common
 class Noise(object):
     def __init__(self, seed=None):
         self.seed = seed
-        self.fns = None
+        self.fns = None     # type: Union[fns.Noise, None]
         sl = common.T_XY + common.T_XY % 2
         self.terrain_grid = [1, sl, sl]
+
+    def blob(self, xy, z, dim=1, r=None, seed=None, freq=0.001):
+        twopi = np.linspace(-np.pi, np.pi, xy, endpoint=False)
+        r = r or np.sqrt(((xy / 2) ** 2) * 2)
+        step = 2 * np.pi * r / xy
+        x_mesh = np.round(np.cos(twopi) * r)
+        y_mesh = np.round(np.sin(twopi) * r)
+        z_mesh = np.linspace(0, z * step, z)
+        self.setup_fns(
+            noise_type=fns.NoiseType.SimplexFractal,
+            frequency=freq,
+            seed=seed
+        )
+        coord = fns.empty_coords(dim * z * xy)
+        for d in range(dim):
+            ds = d * z
+            for zi in range(z):
+                zs = zi * xy + ds
+                ro = d * r * 3
+                coord[0, zs:zs + xy] = x_mesh + ro
+                coord[1, zs:zs + xy] = y_mesh + ro
+                coord[2, zs:zs + xy] = z_mesh[zi]
+        a = self.fns.genFromCoords(coord)
+        res = []
+        for d in range(dim):
+            ds = d * z
+            res.append([])
+            for zi in range(z):
+                zs = zi * xy + ds
+                res[-1].append(a[zs:zs + xy])
+        return res
 
     def woods(self):
         self.setup_fns(
@@ -58,7 +90,7 @@ class Noise(object):
         b = b[:common.T_XY, :common.T_XY]
         b = 1 / (b.max() - b.min()) * (b - b.min())
         b = b ** 2 > common.W_BOUND_CLIP
-        filter = np.zeros(c.shape)
+        fltr = np.zeros(c.shape)
         wood_cells = random.sample(
             range(common.W_CELL_TYPE_COUNT),
             common.W_WOOD_CELL_COUNT
@@ -67,11 +99,11 @@ class Noise(object):
             gt = c >= i
             lt = c < i + 1
             f = gt * lt
-            filter[f] = 1
-        filter[b] = 0
-        # Image.fromarray(filter.astype(np.uint8) * 255).show()
-        return filter, b
+            fltr[f] = 1
+        fltr[b] = 0
+        return fltr, b
 
+    # noinspection PyArgumentList
     def terrain(self):
         self.setup_fns(
             noise_type=common.N_TYPE,
@@ -95,6 +127,7 @@ class Noise(object):
         im.save(f.get_filename().get_fullpath())
         return hf, f
 
+    # noinspection DuplicatedCode
     def setup_fns(
             self,
             noise_type=fns.NoiseType.Simplex,
@@ -140,6 +173,7 @@ class Noise(object):
         self.fns.cell.returnType = cell_return_type
 
 
+# noinspection PyArgumentList
 def noise1d(x, seed=None, octaves=4, d=0.5, normalized=False):
     if not (0 < d < 1):
         raise ValueError('expected 0 < d < 1')

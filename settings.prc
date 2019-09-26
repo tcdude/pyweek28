@@ -4,6 +4,9 @@
 
 debug #t
 
+parallax-mapping-samples 3
+parallax-mapping-scale 0.3
+
 threading-model Cull/Cull
 audio-library-name p3openal_audio
 

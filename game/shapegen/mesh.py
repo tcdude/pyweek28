@@ -96,7 +96,8 @@ class Mesh(object):
             sharp_angle=80.0,
             nac=common.NAC,
             transform=None,
-            no_texcoord=False
+            no_texcoord=False,
+            tangent=False
     ):
         """
         Return a Panda Node of the mesh.
@@ -112,6 +113,7 @@ class Mesh(object):
                 normal vector as color (helpful for debugging)
             transform: transformation to apply to GeomVertexData.
             no_texcoord:
+            tangent:
         """
         va = util.VertArray(self._name, no_texcoord)
 
@@ -134,6 +136,8 @@ class Mesh(object):
                 va.add_triangle(*triangle)
         else:  # smooth shading
             self._compute_smooth_normals(sharp_angle)
+            if tangent:
+                self._compute_tangents()
             # noinspection PyArgumentList
             va.set_num_rows(self._vid)
             mesh2va = {}    # type: Dict[Vertex, int]
@@ -144,13 +148,63 @@ class Mesh(object):
                     c = core.Vec4(*tuple(v.normal), 1)
                 else:
                     c = v.color
-                mesh2va[v] = va.add_row(v.point, v.normal, c, v.texcoord)
+                if tangent:
+                    mesh2va[v] = va.add_row(
+                        v.point, v.normal, c, v.texcoord, v.tangent, v.bitangent
+                    )
+                else:
+                    mesh2va[v] = va.add_row(v.point, v.normal, c, v.texcoord)
             for t in self._trs:
                 triangle = [mesh2va[v] for v in t]
                 va.add_triangle(*triangle)
         if transform is not None:
             va.transform(transform)
         return va.node
+
+    # noinspection DuplicatedCode
+    def _compute_tangents(self):
+        """
+        Computes tangent and bitangent.
+        """
+        for t in self._trs:
+            edge1 = t[1].point - t[0].point
+            edge2 = t[2].point - t[0].point
+            uv1 = t[1].texcoord - t[0].texcoord
+            uv2 = t[2].texcoord - t[0].texcoord
+
+            d = (uv1.x * uv2.y - uv1.y * uv2.x)
+            if d:
+                r = 1 / d
+            else:
+                print('was 0')
+                r = 1
+
+            tangent = core.Vec3(
+                (edge1.x * uv2.y - edge2.x * uv1.y) * r,
+                (edge1.y * uv2.y - edge2.y * uv1.y) * r,
+                (edge1.z * uv2.y - edge2.z * uv1.y) * r
+            )
+
+            bitangent = core.Vec3(
+                (edge1.x * uv2.x - edge2.x * uv1.x) * r,
+                (edge1.y * uv2.x - edge2.y * uv1.x) * r,
+                (edge1.z * uv2.x - edge2.z * uv1.x) * r
+            )
+
+            for v in t:
+                v.tangent += tangent
+                v.bitangent += bitangent
+
+        for v in self._vts.values():
+            t = v.tangent - (v.normal * v.normal.dot(v.tangent))
+            t.normalize()
+            c = v.normal.cross(v.tangent)
+            b = (
+                v.normal.cross(-t) if c.dot(v.bitangent) > 0 else
+                v.normal.cross(t)
+            ).normalized()
+            v.tangent = t
+            v.bitangent = b
 
     def _compute_smooth_normals(self, sharp_angle):
         """
@@ -176,6 +230,7 @@ class Mesh(object):
         self._vertex_normals_computed = self._vid
 
     def add_vertex(self, point, color=core.Vec4(1), texcoord=core.Vec2(0)):
+        # type: (core.Vec3, core.Vec4, core.Vec2) -> int
         """
         Return unique vertex id, inserting a new one only if necessary.
 
@@ -319,6 +374,8 @@ class Vertex(object):
         self._texcoord = texcoord
         self._trs = []
         self._normal = None
+        self._tangent = core.Vec3(0)
+        self._bitangent = core.Vec3(0)
 
     def add_triangle(self, triangle):
         self._trs.append(triangle)
@@ -347,6 +404,22 @@ class Vertex(object):
     @normal.setter
     def normal(self, value):
         self._normal = value
+
+    @property
+    def tangent(self):
+        return self._tangent
+
+    @tangent.setter
+    def tangent(self, value):
+        self._tangent = value
+
+    @property
+    def bitangent(self):
+        return self._bitangent
+
+    @bitangent.setter
+    def bitangent(self, value):
+        self._bitangent = value
 
     @property
     def point(self):

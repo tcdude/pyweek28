@@ -30,31 +30,91 @@ import random
 
 import numpy as np
 from PIL import Image
-# noinspection PyPackageRequirements
-from direct.showbase.ShowBase import ShowBase
-# noinspection PyPackageRequirements
-from direct.fsm.FSM import FSM
-# noinspection PyPackageRequirements
-from direct.interval.LerpInterval import LerpHprInterval
 from panda3d import core
 import pyfastnoisesimd as fns
 
+from . import gamedata
 from . import flora
 from . import common
+from .shapegen import shape
 from .shapegen import noise
+from .shapegen import util
 
 
-class World(ShowBase):
+class World(gamedata.GameData):
     def __init__(self):
-        super().__init__()
+        gamedata.GameData.__init__(self)
         self.heightfield = None
         self.terrain = None
         self.terrain_root = None
         self.terrain_offset = core.Vec3(0)
         self.tree_root = self.render.attach_new_node('tree_root')
+        self.devils_tower = None
         self.noise = noise.Noise()
         self.setup_terrain()
-        self.place_trees()
+        # self.place_devils_tower()
+        # self.place_trees()
+
+    # noinspection PyArgumentList
+    def place_devils_tower(self):
+        self.devils_tower = self.render.attach_new_node(
+            shape.ShapeGen().elliptic_cone(
+                a=(240, 70),
+                b=(200, 80),
+                h=250,
+                max_seg_len=20.0,
+                exp=2.5,
+                top_xy=(40, -20),
+                color=core.Vec4(0.717, 0.635, 0.558, 1),
+                nac=False
+            )
+        )
+        self.devils_tower.set_h(random.randint(0, 360))
+        z = []
+        for x in (-220, 0, 220):
+            for y in (-220, 0, 220):
+                z.append(self.sample_terrain_z(x, y))
+        self.devils_tower.set_z(min(z) - 5)
+
+        self.noise.setup_fns(noise_type=fns.NoiseType.Value, )
+        y, x = common.DT_TEX_SHAPE
+        c = fns.empty_coords(y * x)
+        c[0, :] = np.tile(
+            np.cos(
+                np.linspace(-np.pi, np.pi, x, False)
+            ) * common.DT_XY_RADIUS,
+            y
+        )
+        c[1, :] = np.tile(
+            np.sin(
+                np.linspace(-np.pi, np.pi, x, False)
+            ) * common.DT_XY_RADIUS,
+            y
+        )
+        c[2, :] = np.repeat(
+            np.linspace(-np.pi, np.pi, x, False) * common.DT_Z_RADIUS,
+            y
+        )
+        a = self.noise.fns.genFromCoords(c).reshape((y, x))
+        normal_map = util.sobel(a, 0.15)
+        Image.fromarray(normal_map).show()
+        tex = self.loader.load_texture('rock.jpg')
+        ts = core.TextureStage('ts')
+        tex.set_wrap_u(core.Texture.WM_clamp)
+        tex.set_wrap_v(core.Texture.WM_clamp)
+        self.devils_tower.set_texture(ts, tex)
+        self.devils_tower.set_tex_scale(ts, 1)
+        tex = core.Texture('dt_normal_map')
+        tex.setup_2d_texture(
+            y, x, core.Texture.T_unsigned_byte, core.Texture.F_rgb
+        )
+        tex.set_ram_image_as(normal_map, 'RGB')
+        tex.set_wrap_u(core.Texture.WM_clamp)
+        tex.set_wrap_v(core.Texture.WM_clamp)
+        ts = core.TextureStage('ts')
+        ts.set_mode(core.TextureStage.M_normal)
+        tex.reload()
+        self.devils_tower.set_texture(ts, tex)
 
     def place_trees(self):
         woods, bounds = self.noise.woods()
@@ -109,6 +169,9 @@ class World(ShowBase):
         self.terrain_root.set_tex_scale(core.TextureStage.get_default(), 50)
         self.terrain.generate()
         self.task_mgr.add(self.update_task, 'update_task')
+        # self.terrain_root.set_bin('fixed', 1000000)
+        # self.terrain_root.set_depth_test(False)
+        # self.terrain_root.set_depth_write(False)
 
     def update_task(self, task):
         self.terrain.update()

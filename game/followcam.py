@@ -40,16 +40,23 @@ class FollowCam(object):
         self.dummy = self.root.attach_new_node('cam' + follow.get_name())
         self.z_dummy = self.dummy.attach_new_node('cam_z' + follow.get_name())
         self.z_dummy.set_z(-common.Z_OFFSET)
+        self.cam_z = self.follow.get_pos(self.root).z + common.Z_OFFSET
 
     def update(self, dt):
         f_pos = self.follow.get_pos(self.root)
+        z_diff = f_pos.z + common.Z_OFFSET - self.cam_z
         self.dummy.set_pos(f_pos)
         h = util.clamp_angle(self.dummy.get_h())
         t = util.clamp_angle(self.follow.get_h() - h) * dt
         self.dummy.set_h(h + t * common.TURN_RATE)
         x, y, z = self.z_dummy.get_pos(self.root)
-        z_diff = self.sample_z(x, y) - z
+        z_diff += self.sample_z(x, y) - z
+        if z_diff < 0:
+            z_diff = max(common.Z_RATE * -dt, z_diff)
+        else:
+            z_diff = min(common.Z_RATE * dt, z_diff)
+        self.cam_z = common.Z_OFFSET + z_diff
         self.cam.set_pos(self.root, self.dummy.get_pos())
         self.cam.set_y(self.dummy, common.Y_OFFSET)
-        self.cam.set_z(self.dummy, common.Z_OFFSET + z_diff)
+        self.cam.set_z(self.dummy, self.cam_z)
         self.cam.look_at(f_pos + common.FOCUS_POINT)

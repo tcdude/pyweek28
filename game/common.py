@@ -30,11 +30,14 @@ from panda3d import core
 import pyfastnoisesimd as fns
 
 
-
 # constants for debugging purposes
 NAC = True
 
-# colors
+# fog
+FOG_COLOR = (0.3, 0.3, 0.3)
+FOG_EXP_DENSITY = 0.008
+
+# tree colors
 FIR_TRUNK_START = core.Vec3(0.19, 0.11, 0.01)
 FIR_TRUNK_DELTA = core.Vec3(0.49, 0.3, 0.05) * 0.2
 FIR_BRANCH_START = core.Vec3(0.0, 0.23, 0.05)
@@ -51,7 +54,8 @@ PITCH_SPEED = 15 / MAX_SPEED
 TURN_RATE = 2.5
 Y_OFFSET = -18
 Z_OFFSET = 4
-FOCUS_POINT = core.Vec3(0, 0, 4.5)
+FOCUS_POINT = core.Vec3(0, 0, 5.5)
+Z_RATE = 1
 
 # terrain constants
 T_XY = 1025
@@ -78,3 +82,18 @@ W_CELL_TYPE_COUNT = 12
 W_BOUND_CLIP = 0.6
 W_WOOD_CELL_COUNT = 1
 W_INDIVIDUAL_TREES = 10
+
+# devils tower constants
+DT_TEX_SHAPE = 512, 2048
+DT_XY_RADIUS = 5000
+DT_Z_RADIUS = 80
+
+# nonogram constants
+NG_RADIUS = 0.7
+NG_POLY = 20
+NG_PAD = 0.9
+NG_TEX = 256, 128
+NG_SCALE = 0.8
+NG_OFFSET = core.Vec3(4, 30, -3.9)
+NG_X_RANGE = -0.43, 0.46
+NG_Y_RANGE = 0.5, -0.67

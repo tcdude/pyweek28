@@ -26,9 +26,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from typing import Optional
+
 import numpy as np
+from PIL import Image
+from PIL import ImageDraw
 
 from panda3d import core
+
+
+def bw_tex(x, y):
+    black = (0, 0, 0, 255)
+    white = (255, ) * 4
+    im = Image.new('RGBA', (x, y), black)
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, 0, x // 8 - 1, y - 1), white, white)
+    d.rectangle(((x // 8) * 3 - 1, 0,  (x // 8) * 5 - 1, y - 1), white, white)
+    d.rectangle(((x // 8) * 7 - 1, 0,  x - 1, y - 1), white, white)
+    # im.show()
+    return np.array(im, dtype=np.float32) / 255
 
 
 def clamp_angle(deg):
@@ -37,6 +53,64 @@ def clamp_angle(deg):
     while deg > 180:
         deg -= 360
     return deg
+
+
+def sobel(hf, c):
+    # type: (np.ndarray, float) -> np.ndarray
+    y, x = hf.shape
+    uv = np.empty((y + 2, x + 2), dtype=hf.dtype)
+    uv[1:y + 1, 1:x + 1] = hf
+    uv[1:-1, 0] = hf[:, -1]
+    uv[1:-1, -1] = hf[:, 0]
+    uv[0, :] = uv[1, :]
+    uv[-1, :] = uv[-2, :]
+
+    norm_x = uv[2:, 2:] - uv[2:, :-2]
+    norm_x += 2 * (uv[1:-1, 2:] - uv[1:-1, :-2])
+    norm_x += uv[:-2, 2:] - uv[:-2, :-2]
+    norm_x *= -c
+    norm_y = uv[:-2, :-2] - uv[2:, :-2]
+    norm_y += 2 * (uv[:-2, 1:-1] - uv[2:, 1:-1])
+    norm_y += uv[:-2, 2:] - uv[2:, 2:]
+    norm_y *= -c
+    norm_z = norm_x * 0 + 1.0
+    lens = np.sqrt(norm_x ** 2 + norm_y ** 2 + norm_z)
+    normalized = np.empty((y, x, 3), dtype=hf.dtype)
+    normalized[:, :, 0] = norm_x / lens
+    normalized[:, :, 1] = norm_y / lens
+    normalized[:, :, 2] = norm_z / lens
+    normalized = normalized * 0.5 + 0.5
+    return (normalized * 255).astype(np.uint8)
+
+
+def ellipse(a, b, q_points=None, ccw=False):
+    # type: (float, float, Optional[None, int], Optional[bool]) -> np.ndarray
+    """
+    Return an ndarray of ellipse coordinates. If no `q_points` value is
+    provided, the ceil of the larger value of a, b will be used
+
+    Args:
+        a:
+        b:
+        q_points: number of points in a quarter section (default None)
+        ccw: counter clockwise winding order (default False)
+    """
+    q_points = q_points or int(np.ceil(max(a, b)))
+    if a < b:
+        fa, fb = b, a
+        xy = (1, 0)
+    else:
+        fa, fb = a, b
+        xy = (0, 1)
+    r = np.zeros((q_points * 4, 2))
+    af = np.linspace(0, fa, q_points, endpoint=False)
+    ab = np.linspace(fa, 0, q_points, endpoint=False)
+    r[:, xy[0]] = np.concatenate((af, ab, af, ab))
+    r[:, xy[1]] = np.sqrt(fb ** 2 * (1 - (np.power(r[:, xy[0]], 2) / fa ** 2)))
+    r[2 * q_points:, xy[0]] *= -1
+    r[q_points:3 * q_points, xy[1]] *= -1
+    # r[:] = r[:, xy]
+    return r[::-1] if ccw else r
 
 
 def comp_triangle_normal(pa, pb, pc, normalized=True):
@@ -112,13 +186,45 @@ def triangle_line_connect(upper, lower, wrap_around=True, ccw=True):
 
 # noinspection PyArgumentList
 class VertArray(object):
-    def __init__(self, name='noname', no_texcoord=False):
+    def __init__(self, name='noname', no_texcoord=False, tangents=True):
         self._name = name
         self._no_texcoord = no_texcoord
-        if no_texcoord:
+        self._tangents = tangents
+        if no_texcoord and not tangents:
             self._vdata = core.GeomVertexData(
                 self._name,
                 core.GeomVertexFormat.get_v3n3c4(),
+                core.Geom.UH_static
+            )
+        elif tangents:
+            va_format = core.GeomVertexArrayFormat()
+            va_format.add_column(
+                'vertex',
+                3,
+                core.Geom.NT_float32,
+                core.Geom.C_point
+            )
+            va_format.add_column(
+                'normal', 3, core.Geom.NT_float32, core.Geom.C_vector
+            )
+            va_format.add_column(
+                'tangent', 3, core.Geom.NT_float32, core.Geom.C_vector
+            )
+            va_format.add_column(
+                'binormal', 3, core.Geom.NT_float32, core.Geom.C_vector
+            )
+            va_format.add_column(
+                'color', 4, core.Geom.NT_float32, core.Geom.C_color
+            )
+            if not no_texcoord:
+                va_format.add_column(
+                    'texcoord', 2, core.Geom.NT_float32, core.Geom.C_texcoord
+                )
+            # noinspection PyCallByClass
+            va_format = core.GeomVertexFormat.register_format(va_format)
+            self._vdata = core.GeomVertexData(
+                self._name,
+                va_format,
                 core.Geom.UH_static
             )
         else:
@@ -130,6 +236,9 @@ class VertArray(object):
 
         self._vwriter = core.GeomVertexWriter(self._vdata, 'vertex')
         self._nwriter = core.GeomVertexWriter(self._vdata, 'normal')
+        if tangents:
+            self._tawriter = core.GeomVertexWriter(self._vdata, 'tangent')
+            self._biwriter = core.GeomVertexWriter(self._vdata, 'binormal')
         self._cwriter = core.GeomVertexWriter(self._vdata, 'color')
         if not no_texcoord:
             self._twriter = core.GeomVertexWriter(self._vdata, 'texcoord')
@@ -140,9 +249,22 @@ class VertArray(object):
         self._v_id = 0
         self.set_num_rows = self._vdata.set_num_rows
 
-    def add_row(self, point, normal, color, tex=None):
+    def add_row(
+            self,
+            point,
+            normal,
+            color,
+            tex=None,
+            tangent=None,
+            bitangent=None
+    ):
         self._vwriter.add_data3(point)
         self._nwriter.add_data3(normal)
+        if self._tangents:
+            if tangent is None:
+                raise ValueError('tangent and bitangent not provided')
+            self._tawriter.add_data3(tangent)
+            self._biwriter.add_data3(bitangent)
         self._cwriter.add_data4(color)
         if not self._no_texcoord:
             self._twriter.add_data2(tex)

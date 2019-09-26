@@ -101,7 +101,6 @@ class Draw(object):
             p: pitch
             r: draw radius (distance from orientation)
         """
-        # TODO: test this...
         self._orient.set_pos_hpr(y, x, z, h, p, 0)
         self._draw.set_y(r)
 

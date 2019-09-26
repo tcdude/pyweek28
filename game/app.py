@@ -29,18 +29,18 @@ SOFTWARE.
 import random
 import sys
 
-import numpy as np
-from PIL import Image
-# noinspection PyPackageRequirements
-from direct.filter.CommonFilters import CommonFilters
-# noinspection PyPackageRequirements
-from direct.interval.IntervalGlobal import *
+# # noinspection PyPackageRequirements
+# from direct.filter.CommonFilters import CommonFilters
+# # noinspection PyPackageRequirements
+# from direct.interval.IntervalGlobal import *
 from panda3d import core
 
 from .shapegen import shape
 from . import character
+from . import common
 from . import flora
 from . import world
+from . import nonogram
 from . import followcam
 
 
@@ -58,19 +58,19 @@ def rand_cs():
     return direction, origin
 
 
-class GameApp(world.World):
+# noinspection PyArgumentList
+class GameApp(world.World, nonogram.NonogramSolver):
     def __init__(self):
-        # noinspection PyCallByClass,PyArgumentList
-        self.settings = core.load_prc_file(
-            core.Filename.expand_from('$MAIN_DIR/settings.prc')
+        world.World.__init__(self)
+        nonogram.NonogramSolver.__init__(
+            self, [[0 for _ in range(12)] for _ in range(12)]
         )
-        super().__init__()
         self.disable_mouse()
         self._shapegen = shape.ShapeGen()
         # self.accept('s', self.add_sphere)
         # self.accept('c', self.add_cone)
-        # self.accept('b', self.add_box)
-        # self.accept('t', self.add_tree)
+        self.accept('b', self.add_box)
+        self.accept('n', self.toggle_nonogram)
         self.accept('w', self.update_keymap, ['f', 1])
         self.accept('w-repeat', self.update_keymap, ['f', 1])
         self.accept('w-up', self.update_keymap, ['f', 0])
@@ -87,36 +87,42 @@ class GameApp(world.World):
         self.accept('f1', self.toggle_wireframe)
 
         self.char = character.Character(self)
+        self.char.node_path.set_pos(-300, -300, 0)
+        self.char_fw = self.char.node_path.attach_new_node('character_fw')
+        self.char_fw.set_y(5)
         self.update_z(self.char.node_path)
+        # self.update_z(self.nonogram_node_path)
+        # self.nonogram_node_path.set_x(self.char_fw.get_x(self.render))
+        # self.nonogram_node_path.set_y(self.char_fw.get_y(self.render))
         self.keymap = {'f': 0, 'r': 0}
-        self.global_clock = core.ClockObject.get_global_clock()
         self.follow_cam = followcam.FollowCam(
             self.render, self.cam, self.char.node_path, self.sample_terrain_z)
 
-        self.cam.node().get_lens().set_fov(80)
+        self.cam.node().get_lens().set_fov(60)
+        exp_fog = core.Fog('exp_fog')
+        exp_fog.set_color(*common.FOG_COLOR)
+        exp_fog.set_exp_density(common.FOG_EXP_DENSITY)
+        self.render.set_fog(exp_fog)
+        self.set_background_color(0, 0, 0)
 
-        tempnode = core.NodePath(core.PandaNode("temp node"))
-        tempnode.setAttrib(core.LightRampAttrib.makeSingleThreshold(0.5, 0.4))
-        tempnode.setShaderAuto()
-        self.cam.node().setInitialState(tempnode.getState())
+        # tmp_node = core.NodePath(core.PandaNode('temp_node'))
+        # tmp_node.setAttrib(core.LightRampAttrib.makeSingleThreshold(0.5, 0.4))
+        # tmp_node.setShaderAuto()
+        # self.cam.node().setInitialState(tmp_node.getState())
+        #
+        # self.separation = 1
+        # self.filters = CommonFilters(self.win, self.cam)
+        # filter_ok = self.filters.setCartoonInk(separation=self.separation)
 
-        # Use class 'CommonFilters' to enable a cartoon inking filter.
-        # This can fail if the video card is not powerful enough, if so,
-        # display an error and exit.
-
-        self.separation = 1  # Pixels
-        self.filters = CommonFilters(self.win, self.cam)
-        filterok = self.filters.setCartoonInk(separation=self.separation)
-
-        dl = core.DirectionalLight('dl')
-        dl.set_color(core.Vec4(0.6, 0.6, 0.6, 1))
-        dl_np = self.render.attach_new_node(dl)
-        Sequence(
-            LerpHprInterval(dl_np, 60, (0, -90, 0), (-90, -50, 0)),
-            LerpHprInterval(dl_np, 60, (90, -50, 0), (0, -90, 0)),
-        ).loop()
-
-        self.render.set_light(dl_np)
+        # dl = core.DirectionalLight('dl')
+        # dl.set_color(core.Vec4(0.6, 0.6, 0.6, 1))
+        # dl_np = self.render.attach_new_node(dl)
+        # Sequence(
+        #     LerpHprInterval(dl_np, 60, (0, -90, 0), (-90, -50, 0)),
+        #     LerpHprInterval(dl_np, 60, (90, -50, 0), (0, -90, 0)),
+        # ).loop()
+        #
+        # self.render.set_light(dl_np)
         al = core.AmbientLight('al')
         al.set_color(core.Vec4(0.3, 0.3, 0.3, 1))
         al_np = self.render.attach_new_node(al)
@@ -202,16 +208,20 @@ class GameApp(world.World):
 
     def add_box(self):
         direction, origin = rand_cs()
+        origin *= 0
         bounds = rand_vec3(2, 30)
-        self.render.attach_new_node(
-            self._shapegen.box(
+        bnp = self.render.attach_new_node(
+            self._shapegen.blob(
                 origin,
                 direction,
                 bounds,
-                corner_radius=random.uniform(0, min(bounds) * 0.5),
-                smooth=True
+                smooth=True,
+                color=core.Vec4(0.2, 0.2, 0.2, 1),
+                color2=core.Vec4(0.4, 0.4, 0.4, 1),
+                nac=False
             )
         )
+        bnp.set_pos(self.char.node_path.get_pos(self.render))
 
     def add_tree(self):
         tex = self.loader.load_texture('bark1.jpg')
