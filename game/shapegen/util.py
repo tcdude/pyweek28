@@ -43,7 +43,12 @@ def bw_tex(x, y):
     d.rectangle((0, 0, x // 8 - 1, y - 1), white, white)
     d.rectangle(((x // 8) * 3 - 1, 0,  (x // 8) * 5 - 1, y - 1), white, white)
     d.rectangle(((x // 8) * 7 - 1, 0,  x - 1, y - 1), white, white)
-    # im.show()
+    d.ellipse(
+        (x // 8 * 2 - 1, (y // 8) * 3 - 1, x // 8 * 4 - 1, (y // 8) * 5 - 1),
+        white,
+        white
+    )
+    im.show()
     return np.array(im, dtype=np.float32) / 255
 
 

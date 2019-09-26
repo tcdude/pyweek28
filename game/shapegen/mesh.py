@@ -115,7 +115,7 @@ class Mesh(object):
             no_texcoord:
             tangent:
         """
-        va = util.VertArray(self._name, no_texcoord)
+        va = util.VertArray(self._name, no_texcoord, tangents=tangent)
 
         if face_normals:  # flat shading
             # noinspection PyArgumentList

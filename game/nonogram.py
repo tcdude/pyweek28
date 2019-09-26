@@ -26,18 +26,131 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from itertools import combinations
+import random
+
+import numpy as np
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFilter
+
 from panda3d import core
 from direct.interval.LerpInterval import *
 
 from . import gamedata
 from . import common
+from .shapegen import sdf
 from .shapegen import shape
 from .shapegen import util
 
 
 class NonogramGenerator(object):
-    def __init__(self):
-        pass
+    def __init__(self, grid_shape):
+        self.grid_shape = grid_shape
+        cs = [
+            list(combinations(range(common.NG_SYM_GRID_SIDES ** 2), i))
+            for i in range(2, 6)
+        ]
+        f = [int(len(cs[-1]) / len(cs[i])) + 1 for i in range(3)] + [1]
+        comb = []
+        for c, m in zip(cs, f):
+            comb += c * m
+        s = random.sample(comb, common.NG_SYM_COUNT)
+        self.symbols = [self.generate_image(c) for c in s]
+
+    def build_number_hints(self, symbol):
+        rows = []
+        cols = []
+        _, s = self.symbols[symbol]
+        for row in s:
+            rows.append([])
+            row_block = 0
+            if not cols:
+                upd_col = True
+            else:
+                upd_col = False
+            for col, rv in enumerate(row):
+                if rv:
+                    row_block += 1
+                else:
+                    if row_block > 0:
+                        rows[-1].append(row_block)
+                        row_block = 0
+                if upd_col:
+                    cols.append([])
+                    col_block = 0
+                    for cv in s[:, col]:
+                        if cv:
+                            col_block += 1
+                        else:
+                            if col_block > 0:
+                                cols[-1].append(col_block)
+                                col_block = 0
+        return rows, cols
+
+    def show_all(self):
+        # Debug
+        sx, sy = common.NG_SYM_TEX_SIZE
+        full = Image.new(
+            'L',
+            (common.NG_SYM_COUNT * (sx + 20), sy * 2 + 40),
+            127
+        )
+        for i, (tex, a) in enumerate(self.symbols):
+            im = Image.fromarray(a).resize((sx, sy))
+            x = i * sx + i * 20
+            full.paste(tex, (x, 10))
+            full.paste(im, (x, sy + 30))
+        full.show()
+
+    def generate_image(self, quadrants):
+        """
+        Return a Tuple[ndarray, ndarray] containing image and nonogram.
+
+        Args:
+            quadrants: list of quadrants to draw random polygons in.
+        """
+        sx, sy = common.NG_SYM_TEX_SIZE
+        im = Image.new('L', (sx, sy))
+        d = ImageDraw.Draw(im)
+        sl = common.NG_SYM_GRID_SIDES
+        two_sl = sl * 2
+        seg_x = sx // sl
+        seg_y = sy // sl
+        half_seg_x = sx // two_sl
+        half_seg_y = sy // two_sl
+        for q in quadrants:
+            ax, ay = q % sl, q // sl
+            ax = ax * seg_x + half_seg_x
+            ay = ay * seg_y + half_seg_y
+            poly = sdf.random_polygon(
+                ax,
+                ay,
+                sx / np.random.randint(*common.NG_SYM_RAD_DIV),
+                np.random.uniform(*common.NG_SYM_VAR),
+                np.random.uniform(*common.NG_SYM_FREQ),
+                common.NG_SYM_POLY
+            )
+            d.polygon(tuple(map(tuple, poly)), 255, 255)
+        a = np.array(im)
+        for _ in range(np.random.randint(*common.NG_CIRCLE_RANGE)):
+            circle = sdf.circle(
+                (sx, sy),
+                np.random.randint(
+                    sx // common.NG_CIRCLE_RAD[0],
+                    sx // common.NG_CIRCLE_RAD[1]
+                )
+            )
+            circle = np.roll(circle, np.random.randint(0, sx), 0)
+            a[circle] = 0 if np.random.random() < 0.5 else 255
+        im = Image.fromarray(a)
+        tex = im.filter(ImageFilter.GaussianBlur())
+        im = im.resize((self.grid_shape[0] - 2, self.grid_shape[1] - 2))
+        a = np.array(im)
+        f = a > 0
+        # noinspection PyArgumentList
+        a[f] = a.max()
+        return tex, a
 
 
 class Grid(object):
@@ -49,6 +162,7 @@ class Grid(object):
 
     def toggle(self, x, y):
         self.grid[y][x] = not self.grid[y][x]
+        print(self.grid[y][x])
 
 
 # noinspection PyArgumentList
@@ -90,8 +204,12 @@ class NonogramSolver(gamedata.GameData):
             y = self.mouseWatcherNode.get_mouse_y() * aspect
             x_min, x_max = common.NG_X_RANGE
             if x_min <= x <= x_max and x_min <= y <= x_max:
-                x = min(int(12 / (x_max - x_min) * (x - x_min)), 11)
-                y = min(int(12 - 12 / (x_max - x_min) * (y - x_min)), 11)
+                num_x, num_y = common.NG_GRID
+                x = min(int(num_x / (x_max - x_min) * (x - x_min)), num_x - 1)
+                y = min(
+                    int(num_y - num_y / (x_max - x_min) * (y - x_min)),
+                    num_y - 1
+                )
                 self.toggle_hover(x, y)
                 if self.__clicked:
                     self.toggle_cell(x, y)
@@ -104,25 +222,25 @@ class NonogramSolver(gamedata.GameData):
         cx, cy = self.__current_hover
         if self.__current_hover != (x, y):
             if cx is not None:
-                np = self.__grid_nodes[cy][cx]
-                ps = np.get_pos()
+                node_path = self.__grid_nodes[cy][cx]
+                ps = node_path.get_pos()
                 p = ps + core.Vec3(0, 0, 0)
                 p.y = 0
                 LerpPosInterval(
-                    np,
-                    0.15,
+                    node_path,
+                    common.NG_ANIM_DURATION,
                     p,
                     ps,
                     blendType='easeInOut'
                 ).start()
             if x is not None:
-                np = self.__grid_nodes[y][x]
-                ps = np.get_pos()
+                node_path = self.__grid_nodes[y][x]
+                ps = node_path.get_pos()
                 p = ps + core.Vec3(0, 0, 0)
-                p.y = -1
+                p.y = common.NG_HOVER_Y_OFFSET
                 LerpPosInterval(
-                    np,
-                    0.15,
+                    node_path,
+                    common.NG_ANIM_DURATION,
                     p,
                     ps,
                     blendType='easeInOut'
@@ -130,24 +248,29 @@ class NonogramSolver(gamedata.GameData):
             self.__current_hover = x, y
 
     def toggle_cell(self, x, y):
-        np = self.__grid_nodes[y][x]
-        h = util.clamp_angle(np.get_h())
+        self.__grid.toggle(x, y)
+        node_path = self.__grid_nodes[y][x]
+        h = util.clamp_angle(node_path.get_h())
+        if h > 0:
+            h = 180
+        else:
+            h = 0
         LerpHprInterval(
-            np,
-            0.15,
+            node_path,
+            common.NG_ANIM_DURATION,
             (h + 180, 0, 0),
             (h, 0, 0),
             blendType='easeInOut'
         ).start()
         if h == 0:
             LerpColorInterval(
-                np,
-                0.15,
+                node_path,
+                common.NG_ANIM_DURATION,
                 core.Vec4(0),
                 blendType='easeOut'
             ).start()
         else:
-            np.set_color(core.Vec4(1))
+            node_path.set_color(core.Vec4(1))
 
     def toggle_nonogram(self):
         if self.__hidden:

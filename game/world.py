@@ -52,8 +52,8 @@ class World(gamedata.GameData):
         self.devils_tower = None
         self.noise = noise.Noise()
         self.setup_terrain()
-        # self.place_devils_tower()
-        # self.place_trees()
+        self.place_devils_tower()
+        self.place_trees()
 
     # noinspection PyArgumentList
     def place_devils_tower(self):
