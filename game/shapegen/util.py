@@ -27,6 +27,7 @@ SOFTWARE.
 """
 
 from typing import Optional
+from typing import Union
 
 import numpy as np
 from PIL import Image
@@ -303,20 +304,23 @@ class AABB(object):
         self.origin = origin
         self.bb = bb
 
-    def intersect_point(self, point):
-        d = point - self.origin
-        return abs(d.x) <= self.bb.x and abs(d.y) <= self.bb.y
-
-    def intersect_aabb(self, aabb):
-        d = aabb.origin.x - self.origin.x
-        p = (aabb.bb.x + self.bb.x) - abs(d)
-        if p <= 0:
-            return False
-        d = aabb.origin.y - self.origin.y
-        p = (aabb.bb.y + self.bb.y) - abs(d)
-        if p <= 0:
-            return False
-        return True
+    def intersect(self, other):
+        # type: (Union[core.Vec2, core.Point2, AABB]) -> bool
+        if isinstance(other, (core.Vec2, core.Point2)):
+            d = other - self.origin
+            return abs(d.x) <= self.bb.x and abs(d.y) <= self.bb.y
+        if isinstance(other, AABB):
+            d = other.origin.x - self.origin.x
+            p = (other.bb.x + self.bb.x) - abs(d)
+            if p <= 0:
+                return False
+            d = other.origin.y - self.origin.y
+            p = (other.bb.y + self.bb.y) - abs(d)
+            if p <= 0:
+                return False
+            return True
+        raise TypeError(f'expected either Vec2/Point2 or AABB got '
+                        f'"{type(other).__name__}" instead')
 
     def get_child_id(self, point):
         d = point - self.origin
@@ -352,10 +356,10 @@ class QuadNode(object):
         self.depth = depth
         self.max_leaf_nodes = max_leaf_nodes
 
-    def insert_leaf(self, point, data):
+    def insert_leaf(self, quad_element):
         """Return True on success, otherwise the node has to be split."""
         if len(self.leafs) < self.max_leaf_nodes or self.depth == 0:
-            self.leafs.append(QuadTree.insert_node(QuadElement(point, data)))
+            self.leafs.append(QuadTree.insert_node(quad_element))
             return True
         return False
 
@@ -365,9 +369,10 @@ class QuadNode(object):
 
 
 class QuadElement(object):
-    def __init__(self, point, data):
+    def __init__(self, point, data, aabb=None):
         self.point = point
         self.data = data
+        self.aabb = aabb or AABB(point, core.Vec2(0))
 
 
 class QuadTree(object):
@@ -380,49 +385,57 @@ class QuadTree(object):
         )
 
     def insert(self, point, data):
-        if not self.aabb.intersect_point(point):
+        if not self.aabb.intersect(point):
             raise ValueError('point is outside the bounding box')
-        chk_node = QuadTree.get_node(self.root)
-        while True:
-            if chk_node.insert_leaf(point, data):
-                return
-            for i, aabb in enumerate(chk_node.aabb.get_child_aabb()):
-                chk_node.children[i] = QuadTree.insert_node(
-                    QuadNode(
-                        aabb,
-                        chk_node.depth - 1,
-                        self.max_leaf_nodes
+        if not isinstance(point, AABB):
+            aabb = AABB(point, core.Vec2(0))
+        else:
+            aabb = point
+        qe = QuadElement(point, data, aabb)
+        chk_nodes = [self.root]
+        while chk_nodes:
+            chk_node = QuadTree.nodes[chk_nodes.pop()]
+            if chk_node.aabb.intersect(aabb):
+                if chk_node.insert_leaf(qe):
+                    continue
+                for i, aabb in enumerate(chk_node.aabb.get_child_aabb()):
+                    chk_node.children[i] = QuadTree.insert_node(
+                        QuadNode(
+                            aabb,
+                            chk_node.depth - 1,
+                            self.max_leaf_nodes
+                        )
                     )
-                )
-            for i in chk_node.leafs:
-                n = QuadTree.get_node(i)
-                child_id = chk_node.aabb.get_child_id(n.point)
-                QuadTree.get_node(chk_node.children[child_id]).leafs.append(i)
-            chk_node.leafs = []
-            chk_node = QuadTree.get_node(
-                chk_node.children[chk_node.aabb.get_child_id(point)]
-            )
+                for i in chk_node.leafs:
+                    n = QuadTree.nodes[i]
+                    child_id = chk_node.aabb.get_child_id(n.point)
+                    QuadTree.nodes[chk_node.children[child_id]].leafs.append(i)
+                chk_node.leafs = []
+                chk_nodes += [nid for nid in chk_node.children.values()]
+                # QuadTree.nodes[
+                #     chk_node.children[chk_node.aabb.get_child_id(point)]
+                # ]
 
     def query(self, aabb):
-        if not self.aabb.intersect_aabb(aabb):
+        if not self.aabb.intersect(aabb):
             raise ValueError('aabb does not intersect with the QuadTree aabb')
         results = []
         chk_nodes = [self.root]
         while chk_nodes:
-            chk_node = QuadTree.get_node(chk_nodes.pop())
+            chk_node = QuadTree.nodes[chk_nodes.pop()]
             if chk_node.is_leaf_node:
                 for n in chk_node.leafs:
-                    el = QuadTree.get_node(n)
+                    el = QuadTree.nodes[n]
                     if aabb.intersect_point(el.point):
                         results.append(el.data)
             else:
                 chk_nodes += [nid for nid in chk_node.children.values()]
         return results
 
-    def remove(self, point, data):
+    def remove(self, point, data):  # TODO: fix to remove all instances
         chk_node = self._find_leaf_node(point)
         for i in chk_node.leafs:
-            el = QuadTree.get_node(i)
+            el = QuadTree.nodes[i]
             if el.point == point and el.data == data:
                 QuadTree.remove_node(i)
                 return True
@@ -433,7 +446,7 @@ class QuadTree(object):
         self.insert(to_point, data)
 
     def _find_leaf_node(self, point):
-        if not self.aabb.intersect_point(point):
+        if not self.aabb.intersect(point):
             raise ValueError('point is outside the bounding box')
         chk_node = QuadTree.get_node(self.root)
         while True:
