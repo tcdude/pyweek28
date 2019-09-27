@@ -48,7 +48,7 @@ def bw_tex(x, y):
         white,
         white
     )
-    im.show()
+    # im.show()
     return np.array(im, dtype=np.float32) / 255
 
 

@@ -62,9 +62,7 @@ def rand_cs():
 class GameApp(world.World, nonogram.NonogramSolver):
     def __init__(self):
         world.World.__init__(self)
-        nonogram.NonogramSolver.__init__(
-            self, [[0 for _ in range(12)] for _ in range(12)]
-        )
+        nonogram.NonogramSolver.__init__(self)
         self.disable_mouse()
         self._shapegen = shape.ShapeGen()
         # self.accept('s', self.add_sphere)

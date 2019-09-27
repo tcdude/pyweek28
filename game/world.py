@@ -97,7 +97,7 @@ class World(gamedata.GameData):
         )
         a = self.noise.fns.genFromCoords(c).reshape((y, x))
         normal_map = util.sobel(a, 0.15)
-        Image.fromarray(normal_map).show()
+        # Image.fromarray(normal_map).show()
         tex = self.loader.load_texture('rock.jpg')
         ts = core.TextureStage('ts')
         tex.set_wrap_u(core.Texture.WM_clamp)

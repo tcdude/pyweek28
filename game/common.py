@@ -33,6 +33,9 @@ import pyfastnoisesimd as fns
 # constants for debugging purposes
 NAC = True
 
+# general
+SCR_RES = 1020, 764
+
 # fog
 FOG_COLOR = (0.3, 0.3, 0.3)
 FOG_EXP_DENSITY = 0.008
@@ -94,9 +97,10 @@ NG_POLY = 20
 NG_PAD = 0.9
 NG_TEX = 256, 128
 NG_SCALE = 0.8
-NG_OFFSET = core.Vec3(4, 30, -3.9)
+NG_BG_COLOR = core.Vec4(0.1, 0.1, 0.1, 1)
+NG_OFFSET = core.Vec3(4, 30, -5.5)
 NG_X_RANGE = -0.43, 0.46
-NG_Y_RANGE = 0.5, -0.67
+NG_Y_OFFSET = 0.15  # accounts for Z displacement
 NG_GRID = 12, 12
 NG_ANIM_DURATION = 0.15
 NG_HOVER_Y_OFFSET = -1.5
@@ -109,4 +113,12 @@ NG_SYM_FREQ = 0.1, 0.6
 NG_SYM_COUNT = 18
 NG_CIRCLE_RAD = 14, 5
 NG_CIRCLE_RANGE = 1, 4
+NG_TXT_XX = -0.67
+NG_TXT_XXO = -0.07
+NG_TXT_XY = 0.542 - 0.12
+NG_TXT_XYO = -0.1
+NG_TXT_YX = -0.57
+NG_TXT_YXO = 0.099
+NG_TXT_YY = 0.642 - 0.12
+NG_TXT_YYO = 0.04
 
