@@ -78,7 +78,7 @@ class NonogramGenerator(object):
         self.chosen_symbols = list(random.sample(range(common.NG_SYM_COUNT), 3))
 
     def build_number_hints(self, symbol):
-        print(symbol)
+        # print(symbol)
         horizontal = []
         vertical = []
         _, s = self.symbols[symbol]
@@ -121,7 +121,7 @@ class NonogramGenerator(object):
         )
         if ch:
             s = [self.symbols[i] for i in self.chosen_symbols]
-            print(self.chosen_symbols)
+            # print(self.chosen_symbols)
         else:
             s = self.symbols
         for i, (tex, a) in enumerate(s):

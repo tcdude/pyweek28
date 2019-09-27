@@ -323,6 +323,8 @@ class AABB(object):
                         f'"{type(other).__name__}" instead')
 
     def get_child_id(self, point):
+        if isinstance(point, AABB):
+            point = point.origin
         d = point - self.origin
         if d.x <= 0:
             if d.y <= 0:
@@ -349,22 +351,20 @@ class AABB(object):
 
 
 class QuadNode(object):
-    def __init__(self, aabb, depth, max_leaf_nodes):
+    def __init__(self, aabb, depth, max_leaf_nodes, root=False):
         self.aabb = aabb
         self.children = {i: None for i in range(4)}
         self.leafs = []
         self.depth = depth
         self.max_leaf_nodes = max_leaf_nodes
-
-    def insert_leaf(self, quad_element):
-        """Return True on success, otherwise the node has to be split."""
-        if len(self.leafs) < self.max_leaf_nodes or self.depth == 0:
-            self.leafs.append(QuadTree.insert_node(quad_element))
-            return True
-        return False
+        self.root = root
 
     @property
     def is_leaf_node(self):
+        if len(self.leafs) < self.max_leaf_nodes or self.depth == 0:
+            return True
+        if self.root:
+            return False
         return self.children[0] is None
 
 
@@ -376,12 +376,12 @@ class QuadElement(object):
 
 
 class QuadTree(object):
-    def __init__(self, origin, bounds, max_depth=8, max_leaf_nodes=4):
+    def __init__(self, origin, bounds, max_depth=8, max_leaf_nodes=16):
         self.aabb = AABB(origin, bounds)
         self.max_depth = max_depth
         self.max_leaf_nodes = max_leaf_nodes
         self.root = QuadTree.insert_node(
-            QuadNode(self.aabb, max_depth, max_leaf_nodes)
+            QuadNode(self.aabb, max_depth, max_leaf_nodes, True)
         )
 
     def insert(self, point, data):
@@ -391,14 +391,16 @@ class QuadTree(object):
             aabb = AABB(point, core.Vec2(0))
         else:
             aabb = point
-        qe = QuadElement(point, data, aabb)
+        qe = QuadTree.insert_node(QuadElement(point, data, aabb))
         chk_nodes = [self.root]
         while chk_nodes:
             chk_node = QuadTree.nodes[chk_nodes.pop()]
-            if chk_node.aabb.intersect(aabb):
-                if chk_node.insert_leaf(qe):
-                    continue
-                for i, aabb in enumerate(chk_node.aabb.get_child_aabb()):
+            if chk_node.is_leaf_node:
+                chk_node.leafs.append(qe)
+                continue
+            if chk_node.children[0] is None:
+                for i, aabb in enumerate(
+                        chk_node.aabb.get_child_aabb()):
                     chk_node.children[i] = QuadTree.insert_node(
                         QuadNode(
                             aabb,
@@ -406,29 +408,26 @@ class QuadTree(object):
                             self.max_leaf_nodes
                         )
                     )
-                for i in chk_node.leafs:
-                    n = QuadTree.nodes[i]
-                    child_id = chk_node.aabb.get_child_id(n.point)
-                    QuadTree.nodes[chk_node.children[child_id]].leafs.append(i)
-                chk_node.leafs = []
-                chk_nodes += [nid for nid in chk_node.children.values()]
-                # QuadTree.nodes[
-                #     chk_node.children[chk_node.aabb.get_child_id(point)]
-                # ]
+                # new_qes += chk_node.leafs + qes[qei:]
+                # chk_node.leafs.clear()
+            chk_nodes += [nid for nid in chk_node.children.values()]
 
     def query(self, aabb):
         if not self.aabb.intersect(aabb):
             raise ValueError('aabb does not intersect with the QuadTree aabb')
         results = []
         chk_nodes = [self.root]
+        checked = {}
         while chk_nodes:
             chk_node = QuadTree.nodes[chk_nodes.pop()]
-            if chk_node.is_leaf_node:
-                for n in chk_node.leafs:
-                    el = QuadTree.nodes[n]
-                    if aabb.intersect_point(el.point):
-                        results.append(el.data)
-            else:
+            for n in chk_node.leafs:
+                el = QuadTree.nodes[n]
+                if el in checked:
+                    continue
+                checked[el] = 1
+                if aabb.intersect(el.point):
+                    results.append(el.data)
+            if not chk_node.is_leaf_node:
                 chk_nodes += [nid for nid in chk_node.children.values()]
         return results
 

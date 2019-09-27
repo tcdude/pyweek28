@@ -38,6 +38,7 @@ from panda3d import core
 from .shapegen import shape
 from . import character
 from . import common
+from . import collision
 from . import flora
 from . import world
 from . import nonogram
@@ -61,7 +62,12 @@ def rand_cs():
 # noinspection PyArgumentList
 class GameApp(world.World, nonogram.NonogramSolver):
     def __init__(self):
-        world.World.__init__(self)
+        self.__collision = collision.CollisionHandler(
+            core.Vec2(0),
+            core.Vec2(common.T_XY * common.T_XY_SCALE / 2)
+        )
+
+        world.World.__init__(self, self.__collision)
         nonogram.NonogramSolver.__init__(self)
         self.disable_mouse()
         self._shapegen = shape.ShapeGen()
@@ -127,6 +133,10 @@ class GameApp(world.World, nonogram.NonogramSolver):
         self.render.set_light(al_np)
         self.render.set_shader_auto()
         self.task_mgr.add(self.char_update, 'char_update')
+
+    @property
+    def collision(self):
+        return self.__collision
 
     def char_update(self, task):
         self.char.forward = self.keymap['f']

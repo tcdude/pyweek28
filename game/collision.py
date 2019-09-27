@@ -49,7 +49,7 @@ class CollisionHandler(object):
             origin,
             half_bounds,
             max_depth=8,
-            max_leafs=4
+            max_leafs=16
     ):
         self.qt = util.QuadTree(origin, half_bounds, max_depth, max_leafs)
 
@@ -129,13 +129,13 @@ class CollisionHandler(object):
                 n = (p2 - p1).normalized()
                 mag = (intersect - sp)
                 n.xy = -n.y, n.x
-                n_mag = n * mag
+                n_mag = n * mag.length()
                 rate += forward.dot(n) * 0.5 - 0.5
                 n_mag.x, n_mag.y = (
                     n_mag.x * s.inv_cos - n_mag.y * s.inv_sin,
                     n_mag.y * s.inv_cos + n_mag.x * s.inv_sin
                 )
-                checked[s] = n_mag
+                checked[s] = n_mag.normalized()
             else:
                 raise ValueError(f'unknown shape {s.shape}')
         for f, a in callbacks:

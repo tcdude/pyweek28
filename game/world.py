@@ -36,15 +36,17 @@ import pyfastnoisesimd as fns
 from . import gamedata
 from . import flora
 from . import common
+from . import collision
 from .shapegen import shape
 from .shapegen import noise
 from .shapegen import util
 
 
 class World(gamedata.GameData):
-    def __init__(self):
+    def __init__(self, collision_handler):
         gamedata.GameData.__init__(self)
         self.heightfield = None
+        self.__collision = collision_handler
         self.terrain = None
         self.terrain_root = None
         self.terrain_offset = core.Vec3(0)
@@ -54,6 +56,10 @@ class World(gamedata.GameData):
         self.setup_terrain()
         self.place_devils_tower()
         self.place_trees()
+
+    @property
+    def collision(self):
+        return self.__collision
 
     # noinspection PyArgumentList
     def place_devils_tower(self):
@@ -69,7 +75,14 @@ class World(gamedata.GameData):
                 nac=False
             )
         )
-        self.devils_tower.set_h(random.randint(0, 360))
+        h = random.randint(0, 360)
+        self.collision.add(
+            collision.CollisionCircle(
+                core.Vec2(0),
+                230,
+            )
+        )
+        self.devils_tower.set_h(h)
         z = []
         for x in (-220, 0, 220):
             for y in (-220, 0, 220):
@@ -136,11 +149,18 @@ class World(gamedata.GameData):
             if not woods[y, x]:
                 continue
             node_path = self.tree_root.attach_new_node('fir_tree')
-            random.choice(trees).copy_to(node_path)
+            orig, r = random.choice(trees)
+            orig.copy_to(node_path)
             pos = core.Vec3(
                 x * common.T_XY_SCALE - hs,
                 y * common.T_XY_SCALE - hs,
                 0
+            )
+            self.collision.add(
+                collision.CollisionCircle(
+                    pos.xy,
+                    r
+                )
             )
             pos.z = self.sample_terrain_z(pos.x, pos.y)
             node_path.set_pos(pos)

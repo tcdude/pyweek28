@@ -129,8 +129,31 @@ class Character(object):
             dist = self.speed * dt
             lw_rot -= dist * self.unit_to_deg
             rw_rot -= dist * self.unit_to_deg
+            op = self.char.get_pos(self.root.render)
             self.char.set_y(self.char, dist)
+            dp = self.char.get_pos(self.root.render)
             self.fw_pitch.set_p(-self.speed * common.PITCH_SPEED)
+            cp, rate = self.root.collision.traverse(
+                op.xy,
+                dp.xy,
+                common.CHARACTER_COLLISION_RADIUS
+            )
+            if self.speed < 0:
+                self.speed = min(
+                     self.speed + rate * common.MAX_SPEED,
+                     0
+                 )
+            else:
+                self.speed = max(
+                    self.speed - rate * common.MAX_SPEED,
+                    0
+                )
+            b = (common.T_XY * common.T_XY_SCALE / 2) * 0.9
+            if not (-b < dp.x < b) or not (-b < dp.y < b):
+                cp.x = max(-b, min(cp.x, b))
+                cp.y = max(-b, min(cp.y, b))
+            self.char.set_x(cp.x)
+            self.char.set_y(cp.y)
             self.root.update_z(self.char)
 
         if lw_rot or rw_rot:

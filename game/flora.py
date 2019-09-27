@@ -102,4 +102,4 @@ def fir_tree(
         br_np.set_z(trunk_np, seg_start + seg_height * 0.5 + i * seg_height)
         br_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
 
-    return np
+    return np, trunk_radius
