@@ -219,7 +219,7 @@ class Character(object):
                 length=0.2,
                 origin_offset=0,
                 smooth=True,
-                color=core.Vec4(0.4, 0.2, 0.05, 1),
+                color=core.Vec4(1),
                 nac=False,
                 name='left_wheel'
             )
@@ -236,7 +236,7 @@ class Character(object):
                 length=0.2,
                 origin_offset=0,
                 smooth=True,
-                color=core.Vec4(0.4, 0.2, 0.05, 1),
+                color=core.Vec4(1),
                 nac=False,
                 name='right_wheel'
             )
@@ -283,7 +283,7 @@ class Character(object):
                 radius=0.07,
                 polygon=12,
                 name='eye',
-                color=core.Vec4(0),
+                color=core.Vec4(0.3),
                 nac=False
             )
         )

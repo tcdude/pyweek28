@@ -28,6 +28,7 @@ SOFTWARE.
 
 import random
 from math import ceil
+from math import pi
 
 from panda3d import core
 
@@ -298,8 +299,8 @@ def lever(i):
             direction=core.Vec3.up(),
             radius=0.12,
             polygon=12,
-            length=1.5,
-            origin_offset=0.1,
+            length=1.8,
+            origin_offset=0.2,
             color=common.TR_COLORS[i] * 1.1,
             nac=False,
             name='lever'
@@ -308,3 +309,19 @@ def lever(i):
     lev.set_z(0.15)
     # lev.set_r(90)
     return np, lev
+
+
+def stone_circle(r, num_stones):
+    np = core.NodePath('stone_circle')
+    rot = np.attach_new_node('rot')
+    d = rot.attach_new_node('d')
+    d.set_y(r)
+    c = 2 * pi * r / 2 * 3
+    length = c / num_stones / 2
+    for i in range(num_stones):
+        rot.set_h(300 / num_stones * i - 30)
+        p = d.get_pos(np)
+        s = stone(core.Vec2(length / 2, length))
+        s.reparent_to(np)
+        s.set_pos(p)
+    return np

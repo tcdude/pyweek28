@@ -301,22 +301,24 @@ class World(gamedata.GameData):
         mat = core.Material('mat')
         mat.set_emission(core.Vec4(0.2, 0.4, 0.1, 1))
         for i, (x, y) in enumerate(self.ob_coords):
+            stone_circle = modelgen.stone_circle(20, 30)
             node_path = modelgen.obelisk()
-            node_path.reparent_to(self.render)
+            node_path.reparent_to(stone_circle)
+            stone_circle.reparent_to(self.render)
             node_path.set_material(mat)
             hs = common.T_XY * common.T_XY_SCALE / 2
             wx = x * common.T_XY_SCALE - hs
-            node_path.set_x(wx)
+            stone_circle.set_x(wx)
             wy = y * common.T_XY_SCALE - hs
-            node_path.set_y(wy)
-            node_path.set_z(self.sample_terrain_z(wx, wy))
+            stone_circle.set_y(wy)
+            stone_circle.set_z(self.sample_terrain_z(wx, wy))
             self.collision.add(collision.CollisionCircle(
                 core.Vec2(wx, wy),
                 2,
             ))
             self.collision.add(collision.CollisionCircle(
                 core.Vec2(wx, wy),
-                20,
+                30,
                 (self.__obelisk_found_event, (i,)),
                 ghost=True
             ))
@@ -383,12 +385,30 @@ class World(gamedata.GameData):
         y += hs
         x /= common.T_XY_SCALE
         y /= common.T_XY_SCALE
-        sx = max(int(x) - 1, 0)
-        ex = min(sx + 2, last)
-        sy = min(last - int(y) + 1, last)
-        ey = max(sy - 2, 0)
-        z = self.heightfield[ey:sy, sx:ex]
-        # if not z:
-        #     print(x, y, sx, ex, sy, ey)
-        #     return 0
-        return np.average(z) * common.T_Z_SCALE + 0.1
+        xi = int(x)
+        yi = int(y)
+        rem_x = x - xi
+        rem_y = y - yi
+        if rem_x >= 0.5:
+            ox = xi + 1
+        else:
+            ox = xi - 1
+        if rem_y >= 0.5:
+            oy = yi + 1
+        else:
+            oy = yi - 1
+        yi, oy = last - yi, last - oy
+        z = self.heightfield[yi, xi] * (2 - rem_x - rem_y)
+        z += self.heightfield[oy, xi] * (1 - rem_x + rem_y)
+        z += self.heightfield[yi, ox] * (1 - rem_y + rem_x)
+        z += self.heightfield[oy, ox] * (rem_y + rem_x)
+        return z * 0.25 * common.T_Z_SCALE
+        # sx = max(int(x) - 1, 0)
+        # ex = min(sx + 2, last)
+        # sy = min(last - int(y) + 1, last)
+        # ey = max(sy - 2, 0)
+        # z = self.heightfield[ey:sy, sx:ex]
+        # # if not z:
+        # #     print(x, y, sx, ex, sy, ey)
+        # #     return 0
+        # return np.average(z) * common.T_Z_SCALE + 0.1

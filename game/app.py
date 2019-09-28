@@ -211,18 +211,18 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
         )
         pos = self.camera.get_pos(self.render)
         hpr = self.camera.get_hpr(self.render)
-        self.camera.set_pos(-800, -700, 200)
+        self.camera.set_pos(-800, -700, 400)
         self.camera.look_at(core.Vec3(-300, -300, 80))
         Sequence(
             LerpPosHprInterval(
                 self.camera,
-                2.3,
-                (-295, -295, self.sample_terrain_z(-295, -295) + 20),
-                (40, 20, 0),
+                2,
+                (-295, -295, self.sample_terrain_z(-355, -355) + 280),
+                (40, -20, 0),
                 startPos=(-800, -700, 200),
                 blendType='easeIn'
             ),
-            LerpPosHprInterval(self.camera, 0.7, pos, hpr, blendType='easeOut')
+            LerpPosHprInterval(self.camera, 1, pos, hpr, blendType='easeOut')
         ).start()
 
     def winning_screen(self):
