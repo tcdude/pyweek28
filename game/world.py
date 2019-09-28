@@ -34,12 +34,13 @@ from panda3d import core
 import pyfastnoisesimd as fns
 
 from . import gamedata
-from . import flora
+from . import modelgen
 from . import common
 from . import collision
 from .shapegen import shape
 from .shapegen import noise
 from .shapegen import util
+from .shapegen import sdf
 
 
 class World(gamedata.GameData):
@@ -52,16 +53,71 @@ class World(gamedata.GameData):
         self.terrain_offset = core.Vec3(0)
         self.tree_root = self.render.attach_new_node('tree_root')
         self.devils_tower = None
+        self.__solved_symbols = None
         self.noise = noise.Noise()
+        self.__woods, self.__bounds, self.ob_coords = self.noise.woods()
+        print(self.ob_coords)
         self.setup_terrain()
         self.place_devils_tower()
         self.place_trees()
+        self.__setup_solved_symbols()
+
+        self.__first_obelisk = True
+
+        self.__nonogram = None
+        self.__puzzle = None
+        self.__ng_last_active = 0
+        self.__inner_bounds = False
+        self.__outer_bounds = False
+        # ob = modelgen.obelisk()
+        # ob.reparent_to(self.tree_root)
+        # ob.set_pos(-300, -300, self.sample_terrain_z(-300, -300))
 
     @property
     def collision(self):
         return self.__collision
 
-    # noinspection PyArgumentList
+    def __setup_solved_symbols(self):
+        c = core.CardMaker('solved')
+        c.set_frame(core.Vec4(0, 0.2, -0.3, 0.3))
+        c.set_color(core.Vec4(0))
+        node_path = self.a2dLeftCenter.attach_new_node(c.generate())
+        node_path.set_transparency(core.TransparencyAttrib.M_alpha)
+        self.__solved_symbols = []
+        c = core.CardMaker('s0')
+        c.set_frame(core.Vec4(0.02, 0.18, -0.3, -0.14))
+        self.__solved_symbols.append(node_path.attach_new_node(c.generate()))
+        c = core.CardMaker('s1')
+        c.set_frame(core.Vec4(0.02, 0.18, -0.08, 0.08))
+        self.__solved_symbols.append(node_path.attach_new_node(c.generate()))
+        c = core.CardMaker('s2')
+        c.set_frame(core.Vec4(0.02, 0.18, 0.14, 0.3))
+        self.__solved_symbols.append(node_path.attach_new_node(c.generate()))
+
+    def set_external(self, nonogram, puzzle):
+        self.__nonogram = nonogram
+        self.__puzzle = puzzle
+        for n, s in zip(
+                self.__solved_symbols, self.__nonogram.chosen_symbols_img):
+            tex = core.Texture('chosen_sym')
+            tex.setup_2d_texture(
+                *common.NG_SYM_TEX_SIZE,
+                core.Texture.T_unsigned_byte,
+                core.Texture.F_rgb
+            )
+            ta = np.ones(common.NG_SYM_TEX_SIZE + (4,), dtype=np.uint8)
+            ta *= 255
+            tf = np.array(s) < 255
+            ta[tf, 0] = 0
+            ta[tf, 1] = 0
+            ta[tf, 2] = 0
+            ta[:, :, 3] = 255
+            # ta = np.flip(ta, 1)
+            tex.set_ram_image_as(ta, 'RGBA')
+            tex.reload()
+            n.set_texture(tex, 1)
+            n.hide()
+
     def place_devils_tower(self):
         self.devils_tower = self.render.attach_new_node(
             shape.ShapeGen().elliptic_cone(
@@ -130,30 +186,49 @@ class World(gamedata.GameData):
         self.devils_tower.set_texture(ts, tex)
 
     def place_trees(self):
-        woods, bounds = self.noise.woods()
+        tex = core.Texture('roads')
+        ts = core.TextureStage('ts')
+        # noinspection PyArgumentList
+        tex.setup_2d_texture(
+            1024, 1024, core.Texture.T_float, core.Texture.F_rgb
+        )
+        bounds_tex = np.zeros((1024, 1024, 3), np.float32)
+        bounds_tex[self.__bounds[:1024, :1024], :] = -0.05
+        print(bounds_tex.shape)
+        tex.set_ram_image_as(bounds_tex, 'RGB')
+        tex.reload()
+        ts.set_mode(core.TextureStage.M_add)
+        # ts.set_combine_rgb(
+        #     core.TextureStage.CM_subtract,
+        #     core.TextureStage.CS_texture,
+        #     core.TextureStage.CO_src_color,
+        #     tex,
+        #     core.TextureStage.CO_src_color
+        # )
+        self.terrain_root.set_texture(ts, tex)
         trees = [
-            flora.fir_tree()
+            random.choice((modelgen.fir_tree, modelgen.leaf_tree))()
             for _ in range(common.W_INDIVIDUAL_TREES)
         ]
         x = 3
         y = 3
         hs = common.T_XY * common.T_XY_SCALE / 2
-        while y < woods.shape[0] - 3:
+        while y < self.__woods.shape[0] - 3:
             step = np.random.randint(9, 30)
             x += step
-            if x > woods.shape[0] - 3:
+            if x > self.__woods.shape[0] - 3:
                 y += np.random.randint(10, 20)
-                if y >= woods.shape[0] - 3:
+                if y >= self.__woods.shape[0] - 3:
                     break
-                x = max(3, x % woods.shape[0])
-            if not woods[y, x]:
+                x = max(3, x % self.__woods.shape[0])
+            if not self.__woods[y, x]:
                 continue
             node_path = self.tree_root.attach_new_node('fir_tree')
             orig, r = random.choice(trees)
             orig.copy_to(node_path)
             pos = core.Vec3(
-                x * common.T_XY_SCALE - hs,
-                y * common.T_XY_SCALE - hs,
+                (x + random.random() - 0.5) * common.T_XY_SCALE - hs,
+                (y + random.random() - 0.5) * common.T_XY_SCALE - hs,
                 0
             )
             self.collision.add(
@@ -167,7 +242,17 @@ class World(gamedata.GameData):
 
     # noinspection PyArgumentList
     def setup_terrain(self):
-        self.heightfield, f = self.noise.terrain()
+        self.heightfield = self.noise.terrain()
+        f = sdf.circle((30, 30), 15)
+        avg = np.max(self.heightfield[713:743, 713:743])
+        self.heightfield[713:743, 713:743][f] = avg
+
+        # self.heightfield[self.__bounds] -= 0.1
+        # self.heightfield = np.clip(self.heightfield, 0, 1)
+        hf = (self.heightfield * 255).astype(np.uint8)
+        f = core.TemporaryFile(core.Filename('assets', 'terrain.png'))
+        im = Image.fromarray(hf)
+        im.save(f.get_filename().get_fullpath())
         self.terrain = core.GeoMipTerrain('terrain')
         self.terrain.set_heightfield(f.get_filename())
         self.terrain.set_block_size(32)
@@ -188,12 +273,84 @@ class World(gamedata.GameData):
         self.terrain_root.set_texture(tex, 1)
         self.terrain_root.set_tex_scale(core.TextureStage.get_default(), 50)
         self.terrain.generate()
-        self.task_mgr.add(self.update_task, 'update_task')
-        # self.terrain_root.set_bin('fixed', 1000000)
-        # self.terrain_root.set_depth_test(False)
-        # self.terrain_root.set_depth_write(False)
 
-    def update_task(self, task):
+        # Stones where the tower is...
+        rot = self.render.attach_new_node('rot')
+        d = rot.attach_new_node('d')
+        for i in range(40):
+            d.set_y(random.uniform(common.T_ST_Y_MIN, common.T_ST_Y_MAX))
+            rot.set_h(360 / 40 * (i + random.random() - 0.5))
+            node_path = modelgen.stone(core.Vec2(
+                random.uniform(common.T_ST_MIN_SIZE, common.T_ST_MAX_SIZE),
+                random.uniform(common.T_ST_MIN_SIZE, common.T_ST_MAX_SIZE)
+            ))
+            node_path.reparent_to(self.render)
+            node_path.set_pos(d.get_pos(self.render))
+            node_path.set_hpr(
+                random.uniform(0, 360),
+                random.uniform(0, 360),
+                random.uniform(0, 360)
+            )
+            node_path.set_z(
+                self.sample_terrain_z(*tuple(node_path.get_pos().xy)) - 1
+            )
+
+        # Obelisks
+        mat = core.Material('mat')
+        mat.set_emission(core.Vec4(0.2, 0.4, 0.1, 1))
+        for i, (x, y) in enumerate(self.ob_coords):
+            node_path = modelgen.obelisk()
+            node_path.reparent_to(self.render)
+            node_path.set_material(mat)
+            hs = common.T_XY * common.T_XY_SCALE / 2
+            wx = x * common.T_XY_SCALE - hs
+            node_path.set_x(wx)
+            wy = y * common.T_XY_SCALE - hs
+            node_path.set_y(wy)
+            node_path.set_z(self.sample_terrain_z(wx, wy))
+            self.collision.add(collision.CollisionCircle(
+                core.Vec2(wx, wy),
+                2,
+            ))
+            self.collision.add(collision.CollisionCircle(
+                core.Vec2(wx, wy),
+                20,
+                (self.__obelisk_found_event, (i,)),
+                ghost=True
+            ))
+            self.collision.add(collision.CollisionCircle(
+                core.Vec2(wx, wy),
+                12,
+                (self.__toggle_nonogram, (i,)),
+                ghost=True
+            ))
+        self.task_mgr.add(self.__update_terrain, 'update_task')
+
+    def __solved(self, index):
+        self.__solved_symbols[index].show()
+
+    def __toggle_nonogram(self, index):
+        self.__inner_bounds = True
+        self.__ng_last_active = self.global_clock.get_frame_time()
+        if not self.__nonogram.nonogram_loaded:
+            self.__nonogram.start_nonogram(index)
+            if not self.__nonogram.is_nonogram_solved(index):
+                self.__nonogram.set_nonogram_callback(self.__solved, (index, ))
+        if index == self.__nonogram.current_nonogram_id:
+            return
+
+    def __obelisk_found_event(self, i):
+        self.__outer_bounds = True
+        if not self.__inner_bounds and self.__nonogram.nonogram_loaded:
+            self.__nonogram.hide_nonogram()
+        if self.__first_obelisk:
+            self.display_hint(common.TXT_FIRST_OBELISK)
+            self.__first_obelisk = False
+
+    def __update_terrain(self, task):
+        if self.global_clock.get_frame_time() - self.__ng_last_active > 1:
+            self.__inner_bounds = False
+            self.__nonogram.hide_nonogram()
         self.terrain.update()
         return task.cont
 
@@ -215,4 +372,4 @@ class World(gamedata.GameData):
         # if not z:
         #     print(x, y, sx, ex, sy, ey)
         #     return 0
-        return np.average(z) * common.T_Z_SCALE
+        return np.average(z) * common.T_Z_SCALE + 0.1

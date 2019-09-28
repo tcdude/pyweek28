@@ -32,6 +32,7 @@ from direct.showbase.ShowBase import ShowBase
 from panda3d import core
 
 
+# noinspection PyArgumentList
 class GameData(ShowBase):
     def __init__(self):
         if not hasattr(builtins, 'base'):
@@ -42,3 +43,49 @@ class GameData(ShowBase):
             ShowBase.__init__(self)
             # noinspection PyArgumentList
             self.global_clock = core.ClockObject.get_global_clock()
+            self.keyboard_map = self.win.get_keyboard_map()
+            # onscreen hint text
+            self.__hints = self.aspect2d.attach_new_node('hints')
+            self.__hints.set_transparency(core.TransparencyAttrib.M_alpha)
+            self.__hints.set_alpha_scale(0.6)
+            self.__hint_active = False
+            self.__hint_queue = []
+            self.__last_msg = None
+            self.task_mgr.add(self.__update)
+        self.no_movement = True
+
+    def __update(self, task):
+        if self.__hint_queue and not self.__hint_active:
+            self.__display_next_hint()
+        return task.cont
+
+    def display_hint(self, msg, duration=4, only_inactive=False):
+        if only_inactive and self.__hint_active:
+            return
+        self.__hint_queue.append((msg, duration))
+
+    def __display_next_hint(self):
+        if not self.__hint_queue:
+            return
+        self.__hint_active = True
+        msg, duration = self.__hint_queue.pop(0)
+        if msg == self.__last_msg:
+            self.__hints.show()
+        else:
+            self.__hints.show()
+            self.__hints.get_children().detach()
+            self.__last_msg = msg
+            tn = core.TextNode('hint')
+            tnp = self.__hints.attach_new_node(tn)
+            tn.set_text(msg)
+            tnp.set_scale(0.05)
+            tnp.set_pos(
+                -0.4,
+                0,
+                0.5
+            )
+        self.do_method_later(duration, self.__remove_hints, 'remove_hint')
+
+    def __remove_hints(self, *_):
+        self.__hints.hide()
+        self.__hint_active = False

@@ -604,7 +604,11 @@ class ShapeGen(object):
         """
         msh = mesh.Mesh(name or 'blob')
         self._draw.setup(origin, direction)
-        seg_len = min(bounds) / 2
+        if color.get_num_components() < 4:
+            color = core.Vec4(color, 1)
+        if color2 is not None and color2.get_num_components() < 4:
+            color2 = core.Vec4(color2, 1)
+        seg_len = min(bounds) / 4
         segments = core.LVecBase3i(*map(int, bounds / seg_len)) + 1
         h_segments = (sum(segments.xy) - 2) * 2
         p_segments = h_segments // 2 + 1

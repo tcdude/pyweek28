@@ -29,6 +29,7 @@ SOFTWARE.
 from itertools import combinations
 import random
 from typing import List
+from typing import Union
 
 import numpy as np
 from PIL import Image
@@ -72,13 +73,13 @@ class NonogramGenerator(object):
             t = np.zeros(t.shape)
             t[e] = 1
             e = np.sum(t)
-            # print(e)
             if e > 45:
                 h = False
-        self.chosen_symbols = list(random.sample(range(common.NG_SYM_COUNT), 3))
+        self.chosen_symbols = []
+        for i in range(3):
+            self.chosen_symbols.append(random.randint(0, 5) + i * 6)
 
     def build_number_hints(self, symbol):
-        # print(symbol)
         horizontal = []
         vertical = []
         _, s = self.symbols[symbol]
@@ -121,7 +122,6 @@ class NonogramGenerator(object):
         )
         if ch:
             s = [self.symbols[i] for i in self.chosen_symbols]
-            # print(self.chosen_symbols)
         else:
             s = self.symbols
         for i, (tex, a) in enumerate(s):
@@ -178,28 +178,81 @@ class NonogramGenerator(object):
         f = a > 127
         # noinspection PyArgumentList
         a[f] = a.max()
-        return tex, a
+        tex = tex.transpose(Image.ROTATE_180)
+        tex = tex.transpose(Image.FLIP_TOP_BOTTOM)
+        tex = tex.transpose(Image.ROTATE_90)
+        tex = tex.transpose(Image.FLIP_TOP_BOTTOM)
+        return tex, f
 
 
 class Grid(object):
     def __init__(self, yx):
-        self.grid = [[False for _ in range(yx[0])] for _ in range(yx[1])]
+        self.__grid = [[[]]]
+        self.yx = yx
+        self.__active = -1
+        self.hard_reset()
 
     def __getitem__(self, item):
-        return self.grid[item[1]][item[0]]
+        if self.__active < 0:
+            raise ValueError('You first need to activate a grid')
+        return self.__grid[self.__active][item[1]][item[0]]
+
+    def set_active(self, index):
+        if index not in range(3):
+            raise ValueError('needs to be in range(3)')
+        self.__active = index
 
     def toggle(self, x, y):
-        self.grid[y][x] = not self.grid[y][x]
-        # print(self.grid[y][x])
+        if self.__active < 0:
+            raise ValueError('You first need to activate a grid')
+        self.__grid[self.__active][y][x] = not self.__grid[self.__active][y][x]
+
+    def hard_reset(self):
+        self.__grid = [
+            [
+                [False for _ in range(self.yx[0])]
+                for _ in range(self.yx[1])
+            ]
+            for _ in range(3)
+        ]
+        self.__active = -1
+
+    def check(self, ref):
+        if self.__active < 0:
+            raise ValueError('You first need to activate a grid')
+        for y in range(1, self.yx[0] - 1):
+            for x in range(1, self.yx[1] - 1):
+                ry = y - 1
+                rx = x - 1
+                if self.__grid[self.__active][y][x] != ref[ry, rx]:
+                    return False
+        return True
+
+    def __repr__(self):
+        return f'Grid-{self.__active}, ({self.yx})'
+
+    def __str__(self):
+        s = f'{self.__active} = \n'
+        for r in self.__grid[self.__active]:
+            ts = ' '
+            for v in r:
+                ts += '1 ' if v else '0 '
+            ts += '\n'
+            s += ts
+        return s
 
 
 # noinspection PyArgumentList
 class NonogramSolver(gamedata.GameData):
     def __init__(self):
-        super().__init__()
+        gamedata.GameData.__init__(self)
         # self.__solution = solution
         self.__nonogram_gen = NonogramGenerator()
         self.__current_symbol_id = -1
+        self.__solved = [False, False, False]
+        self.__yx = tuple(reversed(common.NG_GRID))
+        self.__grid = Grid(self.__yx)
+        self.__solution = [None, None, None]
 
         self.__base = self.cam.attach_new_node('NonogramRoot')
         self.__text = self.aspect2d.attach_new_node(
@@ -211,14 +264,7 @@ class NonogramSolver(gamedata.GameData):
         al.set_color(core.Vec4(0.8))
         al_np = self.render.attach_new_node(al)
         self.__base.set_light(al_np)
-        self.__root = self.__base.attach_new_node('CellRoot')
-        self.__yx = tuple(reversed(common.NG_GRID))
-        self.__root.set_pos(
-            -(common.NG_RADIUS * 2 + common.NG_PAD) * self.__yx[1] / 2,
-            0,
-            (common.NG_RADIUS * 2 + common.NG_PAD) * self.__yx[0] / 2
-        )
-        self.__grid = Grid(self.__yx)
+        self.__root = None
         self.__grid_nodes = []
         self.__h_txt_grid = [
             [] for _ in range(self.__yx[0])
@@ -246,15 +292,63 @@ class NonogramSolver(gamedata.GameData):
         self.__current_hover = None, None
         self.accept('mouse1-up', self.__click)
         self.accept('m', self.__nonogram_gen.show_all, [True])
+        self.accept('u', self.__update_cells)
         self.__aspect = self.win.get_y_size() / self.win.get_x_size()
         self.__setup()
         self.task_mgr.add(self.mouse_watch, 'nonogram_mouse_watcher')
         self.hide_nonogram()
 
+        self.__nonogram_loaded = False
+        self.__nonogram_solved = False
+
+        self.__callback = None
+        self.__cbargs = ()
+
+    def set_nonogram_callback(self, callback, args=()):
+        self.__callback = callback
+        self.__cbargs = args
+
+    def is_nonogram_solved(self, index):
+        return self.__solved[index]
+
+    @property
+    def symbols(self):
+        return self.__nonogram_gen.symbols
+
+    @property
+    def nonogram_loaded(self):
+        return self.__nonogram_loaded
+
+    @property
+    def nonogram_solved(self):
+        return self.__nonogram_solved
+
+    @property
+    def current_nonogram_id(self):
+        return self.__current_symbol_id
+
+    @property
+    def get_nonogram_instance(self):
+        return self
+
+    @property
+    def chosen_symbols_img(self):
+        symbols = []
+        for i in self.__nonogram_gen.chosen_symbols:
+            symbols.append(self.__nonogram_gen.symbols[i][0])
+        return symbols
+
+    @property
+    def chosen_symbols(self):
+        return self.__nonogram_gen.chosen_symbols
+
     def __click(self):
-        self.__clicked = True
+        if not self.__hidden:
+            self.__clicked = True
 
     def mouse_watch(self, task):
+        if self.__hidden:
+            return task.cont
         aspect = self.win.get_y_size() / self.win.get_x_size()
         if aspect != self.__aspect:
             self.__update_text()
@@ -262,7 +356,6 @@ class NonogramSolver(gamedata.GameData):
         if not self.__hidden and self.mouseWatcherNode.has_mouse():
             x = self.mouseWatcherNode.get_mouse_x()
             y = self.mouseWatcherNode.get_mouse_y() + common.NG_Y_OFFSET
-            # print(x, y, y * self.__aspect)
             y = y * self.__aspect
             x_min, x_max = common.NG_X_RANGE
             if x_min <= x <= x_max and x_min <= y <= x_max:
@@ -274,7 +367,8 @@ class NonogramSolver(gamedata.GameData):
                 )
                 self.toggle_hover(x, y)
                 if self.__clicked:
-                    self.toggle_cell(x, y)
+                    if not self.__nonogram_solved:
+                        self.toggle_cell(x, y)
                     self.__clicked = False
             else:
                 self.toggle_hover()
@@ -318,6 +412,8 @@ class NonogramSolver(gamedata.GameData):
             self.__current_hover = x, y
 
     def toggle_cell(self, x, y):
+        if self.__nonogram_solved:
+            return
         self.__grid.toggle(x, y)
         node_path = self.__grid_nodes[y][x]
         h = util.clamp_angle(node_path.get_h())
@@ -341,6 +437,31 @@ class NonogramSolver(gamedata.GameData):
             ).start()
         else:
             node_path.set_color(core.Vec4(1))
+        self.__check_solved()
+
+    def __check_solved(self):
+        if not self.nonogram_loaded:
+            return
+        if self.__nonogram_solved:
+            return
+        if self.__grid.check(
+                self.symbols[
+                    self.__nonogram_gen.chosen_symbols[self.current_nonogram_id]
+                ][1]):
+            self.reset_grid()
+            if self.__callback is not None:
+                self.__callback(*self.__cbargs)
+            self.__nonogram_solved = True
+            self.__solved[self.current_nonogram_id] = True
+            self.__show_solution(self.current_nonogram_id)
+            self.__nonogram_loaded = False
+            self.__callback = None
+
+    def reset_grid(self):
+        for y in range(self.__grid.yx[0]):
+            for x in range(self.__grid.yx[1]):
+                if self.__grid[x, y]:
+                    self.toggle_cell(x, y)
 
     def toggle_nonogram(self):
         if self.__hidden:
@@ -351,11 +472,15 @@ class NonogramSolver(gamedata.GameData):
     def show_nonogram(self):
         self.__base.show()
         self.__text.show()
+        self.__nonogram_loaded = False
         self.__hidden = False
 
     def hide_nonogram(self):
         self.__base.hide()
         self.__text.hide()
+        for n in self.__solution:
+            n.hide()
+        self.__nonogram_loaded = False
         self.__hidden = True
 
     def __add_number_node(self, row=None, col=None):
@@ -391,14 +516,26 @@ class NonogramSolver(gamedata.GameData):
         )
         a[ai].append(tnp)
 
+    def __show_solution(self, symbol):
+        self.__solution[symbol].show()
+
     def start_nonogram(self, symbol_id):
+        # print(repr(self.__grid))
         if symbol_id not in range(3):
             raise ValueError('expected value in range(3)')
+        self.__nonogram_solved = False
+        if self.__solved[symbol_id]:
+            self.__show_solution(symbol_id)
+            self.__nonogram_solved = True
+            return
+        self.__grid.set_active(symbol_id)
         self.__current_symbol_id = symbol_id
         sm = self.__nonogram_gen.chosen_symbols[symbol_id]
         if self.__hidden:
             self.show_nonogram()
+        self.__setup()
         rv, cv = self.__nonogram_gen.build_number_hints(sm)
+        print(rv, cv)
         for i, r in enumerate(rv):
             if not r:
                 self.__h_txt_values[i + 1][0] = '0'
@@ -412,6 +549,13 @@ class NonogramSolver(gamedata.GameData):
             for j, v in enumerate(c):
                 self.__v_txt_values[i + 1][j] = str(v)
         self.__update_text()
+        self.__update_cells()
+        self.__nonogram_loaded = True
+
+    def __update_cells(self):
+        self.reset_grid()
+        # print(repr(self.__grid))
+        # print(str(self.__grid))
 
     def __update_text(self):
         self.__h_txt_grid = [
@@ -427,11 +571,22 @@ class NonogramSolver(gamedata.GameData):
                 self.__add_number_node(i)
 
     def __setup(self):
-        self.start_nonogram(0)
+        # self.start_nonogram(0)
+        if None in self.__solution:
+            self.__generate_solution_cards()
+
+        self.__root = None
+        self.__base.get_children().detach()
+        self.__root = self.__base.attach_new_node('CellRoot')
+        self.__root.set_pos(
+            -(common.NG_RADIUS * 2 + common.NG_PAD) * self.__yx[1] / 2,
+            0,
+            (common.NG_RADIUS * 2 + common.NG_PAD) * self.__yx[0] / 2
+        )
+
         c = core.CardMaker('nbg')
         c.set_frame(core.Vec4(-100, 100, -100, 100))
         self.__card = self.__base.attach_new_node(c.generate())
-        # self.__card.set_texture(self.loader.load_texture('rock.jpg'))
         self.__card.set_color(common.NG_BG_COLOR)
         self.__card.set_transparency(core.TransparencyAttrib.M_alpha)
         o = core.Vec3(0)
@@ -440,6 +595,29 @@ class NonogramSolver(gamedata.GameData):
         self.__card.set_bin('fixed', 0)
         self.__card.set_depth_test(False)
         self.__card.set_depth_write(False)
+
+        self.__h_txt_grid = [
+            [] for _ in range(self.__yx[0])
+        ]  # type: List[List[core.NodePath]]
+        self.__h_txt_values = [
+            [
+                '' for _ in range(5)
+            ] for _ in range(self.__yx[0])
+        ]  # type: List[List[str]]
+        for h in self.__h_txt_values:
+            h[0] = '0'
+
+        self.__v_txt_grid = [
+            [] for _ in range(self.__yx[1])
+        ]  # type: List[List[core.NodePath]]
+        self.__v_txt_values = [
+            [
+                '' for _ in range(5)
+            ] for _ in range(self.__yx[0])
+        ]  # type: List[List[str]]
+        for v in self.__v_txt_values:
+            v[0] = '0'
+
         tex = core.Texture('cell_tex')
         tex.setup_2d_texture(
             *tuple(reversed(common.NG_TEX)),
@@ -450,6 +628,9 @@ class NonogramSolver(gamedata.GameData):
         tex.set_wrap_u(core.Texture.WM_clamp)
         tex.set_wrap_v(core.Texture.WM_clamp)
         tex.reload()
+        if self.__grid_nodes:
+            self.__grid_nodes = []
+            self.__root.get_children().detach()
 
         cell_np = self.__root.attach_new_node(
             self.__sg.sphere(
@@ -482,3 +663,24 @@ class NonogramSolver(gamedata.GameData):
                     self.__grid_nodes[-1].append(node_path)
                 else:
                     self.__grid_nodes[-1].append(cell_np)
+
+    def __generate_solution_cards(self):
+        for i in range(3):
+            c = core.CardMaker('nbg')
+            c.set_frame(core.Vec4(-0.5, 0.5, -0.5, 0.5))
+            self.__solution[i] = self.aspect2d.attach_new_node(c.generate())
+            im = self.symbols[self.__nonogram_gen.chosen_symbols[i]][0]
+            a = np.zeros(im.size + (3,), dtype=np.uint8)
+            a[:, :, 0] = np.array(im)
+            a[:, :, 1] = np.array(im)
+            a[:, :, 2] = np.array(im)
+            tex = core.Texture(f'solution{i}')
+            tex.setup_2d_texture(
+                *a.shape[:2],
+                core.Texture.T_unsigned_byte,
+                core.Texture.F_rgb
+            )
+            tex.set_ram_image_as(a, 'RGB')
+            tex.reload()
+            self.__solution[i].set_texture(tex, 1)
+            self.__solution[i].hide()

@@ -36,29 +36,66 @@ NAC = True
 # general
 SCR_RES = 1020, 764
 
+# text
+TXT_FOUND_RINGS = 'Strange... what is this thing?'
+TXT_LEVER_HINT = 'Maybe those levers do something?'
+TXT_LEVER_ACTIVATE = 'Use --L--/--R-- to move the lever'
+TXT_LEVER_FIRST_MOVE = 'Looks like we need a combination... \n' \
+                       'I wonder who made those ugly symbols though...'
+TXT_LEVER_LONG_TIME = 'Maybe there are other clues around here??'
+TXT_FIRST_OBELISK = 'Huh?!?.. That thing kind of looks out of place.\n\n' \
+                    'Should we take a closer look?'
+
 # fog
 FOG_COLOR = (0.3, 0.3, 0.3)
 FOG_EXP_DENSITY = 0.008
 
-# tree colors
+# three rings
+TR_COLORS = [
+    core.Vec4(core.Vec3(0.06, 0.1, 0.07), 1),
+    core.Vec4(core.Vec3(0.06, 0.06, 0.1), 1),
+    core.Vec4(core.Vec3(0.15, 0.14, 0.1), 1),
+]
+TR_RADII = [10, 7, 4]
+TR_HEIGHTS = [3, 5, 7]
+TR_POLYGON = 36
+TR_SYM_ALPHA = 0.9
+TR_LEVER_BOX_BB = core.Vec3(1, 2, 2)
+TR_LEVER_Y = 15
+TR_O1_OFFSET = core.Vec3(4, TR_LEVER_Y, -1)
+TR_O2_OFFSET = core.Vec3(-4, TR_LEVER_Y, -1)
+
+# tree/stone colors
 FIR_TRUNK_START = core.Vec3(0.19, 0.11, 0.01)
 FIR_TRUNK_DELTA = core.Vec3(0.49, 0.3, 0.05) * 0.2
 FIR_BRANCH_START = core.Vec3(0.0, 0.23, 0.05)
 FIR_BRANCH_DELTA = core.Vec3(0.09, 0.49, 0.2)
+LEAF_TRUNK_START = core.Vec3(0.19, 0.11, 0.01)
+LEAF_TRUNK_DELTA = core.Vec3(0.49, 0.3, 0.05) * 0.2
+LEAF_BRANCH_COLORS = [
+    (core.Vec3(0.0, 0.23, 0.05), core.Vec3(0.09, 0.49, 0.2)),
+    (core.Vec3(0.5, 0.08, 0.02), core.Vec3(0.3, 0.19, 0.18)),
+]
+STONE_START = core.Vec3(0.07, 0.08, 0.07)
+STONE_DELTA = core.Vec3(0.2, 0.2, 0.2) * 0.2
 
 # character constants
 MAX_SPEED = 80
-ACCELERATION = 50
-BREAKING = 8
+ACCELERATION = 70
+BREAKING = 14
 ROTATION_SPEED = 120
 PITCH_SPEED = 15 / MAX_SPEED
 CHARACTER_COLLISION_RADIUS = 1.2
+MIN_SFX_SPEED = 0.5
+MAX_SFX_SPEED = 1.6
+CUT_OFF_SPEED = 0.5
+SFX_VOLUME = 0.1
 
 # follow-cam constants
 TURN_RATE = 2.5
-Y_OFFSET = -18
-Z_OFFSET = 4
-FOCUS_POINT = core.Vec3(0, 0, 5.5)
+Y_OFFSET = -20
+Z_OFFSET = 8
+FOCUS_POINT = core.Vec3(0, 0, 6.5)
 Z_RATE = 1
 
 # terrain constants
@@ -76,6 +113,11 @@ N_PERT_AMP = 0.5
 N_PERT_FREQ = 1.2
 N_PERT_LAC = 2.5
 N_PERT_GAIN = 0.5
+T_STONE_COUNT = 40
+T_ST_MIN_SIZE = 4
+T_ST_MAX_SIZE = 50
+T_ST_Y_MIN = 180
+T_ST_Y_MAX = 210
 
 # woods constants
 WN_TYPE = fns.NoiseType.Cellular
@@ -84,7 +126,7 @@ WN_RET_TYPE = fns.CellularReturnType.CellValue
 WN_FRACTAL_OCT = 5
 W_CELL_TYPE_COUNT = 12
 W_BOUND_CLIP = 0.6
-W_WOOD_CELL_COUNT = 1
+W_WOOD_CELL_COUNT = 2
 W_INDIVIDUAL_TREES = 10
 
 # devils tower constants

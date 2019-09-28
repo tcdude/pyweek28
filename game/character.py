@@ -62,6 +62,10 @@ class Character(object):
         self._rot = 0
         self._z = 0
         self.animate()
+        self.__sfx = self.root.loader.load_sfx('wheel.ogg')
+        self.__sfx.set_volume(0.1)
+        self.__sfx.set_loop(True)
+        self.__sfx.play()
 
     @property
     def forward(self):
@@ -92,7 +96,6 @@ class Character(object):
         return self.char
 
     def move(self, dt):
-        abs_speed = abs(self.speed)
         speed_delta = 0
         if self._fw:
             if self._fw > 0:
@@ -125,6 +128,27 @@ class Character(object):
                 rw_rot += rotation * self.turn_to_wheel_deg
             self.char.set_h(self.char, rotation)
 
+        abs_speed = abs(self.speed)
+        playing = False
+        if abs_speed < common.CUT_OFF_SPEED:
+            self.__sfx.set_volume(0)
+        elif abs_speed >= common.CUT_OFF_SPEED:
+            self.__sfx.set_play_rate(
+                (common.MAX_SFX_SPEED - common.MIN_SFX_SPEED)
+                / common.MAX_SPEED
+                * abs_speed
+                + common.MIN_SFX_SPEED
+            )
+            self.__sfx.set_volume(common.SFX_VOLUME)
+            playing = True
+        elif lw_rot or rw_rot:
+            self.__sfx.set_play_rate(common.MIN_SFX_SPEED)
+            self.__sfx.set_volume(common.SFX_VOLUME)
+            playing = True
+
+        if playing and self.__sfx.status() == self.__sfx.READY:
+            self.__sfx.play()
+
         if speed_delta:
             dist = self.speed * dt
             lw_rot -= dist * self.unit_to_deg
@@ -138,16 +162,17 @@ class Character(object):
                 dp.xy,
                 common.CHARACTER_COLLISION_RADIUS
             )
-            if self.speed < 0:
-                self.speed = min(
-                     self.speed + rate * common.MAX_SPEED,
-                     0
-                 )
-            else:
-                self.speed = max(
-                    self.speed - rate * common.MAX_SPEED,
-                    0
-                )
+            # TODO: Rethink this to make it work...
+            # if self.speed < 0:
+            #     self.speed = min(
+            #          self.speed - rate * common.MAX_SPEED,
+            #          0
+            #      )
+            # else:
+            #     self.speed = max(
+            #         self.speed + rate * common.MAX_SPEED,
+            #         0
+            #     )
             b = (common.T_XY * common.T_XY_SCALE / 2) * 0.9
             if not (-b < dp.x < b) or not (-b < dp.y < b):
                 cp.x = max(-b, min(cp.x, b))

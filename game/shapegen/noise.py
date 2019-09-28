@@ -35,6 +35,7 @@ import pyfastnoisesimd as fns
 from PIL import Image
 
 from .. import common
+from . import sdf
 
 
 class Noise(object):
@@ -101,7 +102,28 @@ class Noise(object):
             f = gt * lt
             fltr[f] = 1
         fltr[b] = 0
-        return fltr, b
+        fltr[sdf.circle(fltr.shape, 120)] = 0
+        obelisk_circle = sdf.circle((30, 30), 15)
+        obelisk_coordinates = [(825, 825)]
+        for i in range(3):
+            while True:
+                cx, cy = 500, 500
+                while 400 < cx < 600 or 400 < cy < 600:
+                    cx, cy = np.random.randint(150, 950, 2)
+                ok = True
+                for x, y in obelisk_coordinates:
+                    d = (core.Vec2(x, y) - core.Vec2(cx, cy)).length()
+                    if d < 140:
+                        ok = False
+                if ok:
+                    if np.sum(fltr[cy - 15:cy + 15, cx - 15:cx + 15]) > 300:
+                        obelisk_coordinates.append((cx, cy))
+                        break
+        for x, y in obelisk_coordinates:
+            fltr[y - 15:y + 15, x - 15:x + 15][obelisk_circle] = 0
+        # Image.fromarray((fltr * 255).astype(np.uint8)).show()
+        # Image.fromarray((b * 255).astype(np.uint8)).show()
+        return fltr, b, obelisk_coordinates[1:]
 
     # noinspection PyArgumentList
     def terrain(self):
@@ -121,11 +143,7 @@ class Noise(object):
         hf = self.fns.genAsGrid(self.terrain_grid)[0]
         hf = hf[:common.T_XY, :common.T_XY]
         hf = 1 / (hf.max() - hf.min()) * (hf - hf.min())
-        f = core.TemporaryFile(core.Filename('assets', 'terrain.png'))
-        im = Image.fromarray((hf * 255).astype(np.uint8))
-        # im.show()
-        im.save(f.get_filename().get_fullpath())
-        return hf, f
+        return hf
 
     # noinspection DuplicatedCode
     def setup_fns(

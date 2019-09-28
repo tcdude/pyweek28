@@ -163,6 +163,8 @@ class CollisionCircle(CollisionShape):
     shape = CIRCLE
 
     def __init__(self, p, r, callback=None, ghost=False):
+        if p.get_num_components() > 2:
+            p = p.xy
         self.point = p
         self.r = r
         self.aabb = util.AABB(p, core.Vec2(r))
@@ -174,6 +176,8 @@ class CollisionEllipse(CollisionShape):
     shape = ELLIPSE
 
     def __init__(self, p, a, b, h_offset=0, callback=None, ghost=False):
+        if p.get_num_components() > 2:
+            p = p.xy
         self.point = p
         self.a, self.b, self.h_offset = a, b, h_offset
         self.a_sq, self.b_sq = a ** 2, b ** 2
