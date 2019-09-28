@@ -268,7 +268,7 @@ class NonogramSolver(gamedata.GameData):
         gamedata.GameData.__init__(self)
         # self.__solution = solution
         self.__nonogram_gen = NonogramGenerator()
-        self.__current_symbol_id = -1
+        self.__current_symbol_id = None
         self.__solved = [False, False, False]
         self.__yx = tuple(reversed(common.NG_GRID))
         self.__grid = Grid(self.__yx)
@@ -312,7 +312,7 @@ class NonogramSolver(gamedata.GameData):
         self.__current_hover = None, None
         self.accept('mouse1-up', self.__click)
         self.accept('m', self.__nonogram_gen.show_all, [True])
-        self.accept('u', self.__update_cells)
+        # self.accept('u', self.__update_cells)
         self.__aspect = self.win.get_y_size() / self.win.get_x_size()
         self.__setup()
         self.task_mgr.add(self.mouse_watch, 'nonogram_mouse_watcher')
@@ -461,32 +461,32 @@ class NonogramSolver(gamedata.GameData):
 
     def __check_solved(self):
         if not self.nonogram_loaded:
+            print('Warning: tried to check when no nonogram is loaded')
             return
         if self.__nonogram_solved:
+            print('Warning: tried to check already solved nonogram')
+            return
+        if self.current_nonogram_id is None:
+            print('Warning: tried to check when no nonogram is active')
             return
         if self.__grid.check(
                 self.symbols[
                     self.__nonogram_gen.chosen_symbols[self.current_nonogram_id]
                 ][1]):
+            self.__show_solution(self.current_nonogram_id)
+            self.__solved[self.current_nonogram_id] = True
+            self.__current_symbol_id = None
             self.reset_grid()
             if self.__callback is not None:
                 self.__callback(*self.__cbargs)
             self.__nonogram_solved = True
-            self.__solved[self.current_nonogram_id] = True
-            self.__show_solution(self.current_nonogram_id)
             self.__nonogram_loaded = False
             self.__callback = None
-
-    def toggle_nonogram(self):
-        if self.__hidden:
-            self.show_nonogram()
-        else:
-            self.hide_nonogram()
 
     def show_nonogram(self):
         self.__base.show()
         self.__text.show()
-        self.__nonogram_loaded = False
+        # self.__nonogram_loaded = False
         self.__hidden = False
 
     def hide_nonogram(self):
@@ -494,7 +494,8 @@ class NonogramSolver(gamedata.GameData):
         self.__text.hide()
         for n in self.__solution:
             n.hide()
-        self.__nonogram_loaded = False
+        # self.__nonogram_loaded = False
+        # self.__current_symbol_id = None
         self.__hidden = True
 
     def __add_number_node(self, row=None, col=None):
@@ -541,9 +542,9 @@ class NonogramSolver(gamedata.GameData):
         if self.__solved[symbol_id]:
             self.__show_solution(symbol_id)
             self.__nonogram_solved = True
+            # print('was solved...')
             return
         self.__grid.set_active(symbol_id)
-        self.__current_symbol_id = symbol_id
         sm = self.__nonogram_gen.chosen_symbols[symbol_id]
         if self.__hidden:
             self.show_nonogram()
@@ -565,6 +566,7 @@ class NonogramSolver(gamedata.GameData):
         self.__update_text()
         self.__update_cells()
         self.__nonogram_loaded = True
+        self.__current_symbol_id = symbol_id
 
     def __update_cells(self):
         if not self.__grid.ready:

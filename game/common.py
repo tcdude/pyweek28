@@ -35,7 +35,7 @@ NAC = True
 
 # general
 SCR_RES = 1020, 764
-START_DURATION = 5
+START_DURATION = 3
 
 # text
 TXT_FOUND_RINGS = 'Look... what is this thing?\n\n...some sort of shrine?'
@@ -48,13 +48,22 @@ TXT_FIRST_OBELISK = 'Huh?!?.. That thing kind of looks out of place.\n\n' \
                     'Should we take a closer look?'
 TXT_WON = [
     'Incredible!!! You did it...',
-    '''Frankly, I'm astonished you got here with those meager hints...''',
+    '''To be frank, I'm astonished you got here with those meager hints...''',
     '"..."',
     '"..."',
     '<brain too slow... OV3RLO4D words not forming prprly...>',
     'G A M E   O V E R',
     'G A M E   O V E R',
     'G A M E   O V E R !',
+    'Thank you for playing :)',
+    'And a big thank you to everyone\nwho helped and or contributed\n'
+    'in any way!',
+    'Kathy, for holding my back free during this week\n',
+    'Evelyne, for helping hash out ideas and also\nkeep me motivated',
+    'Joel, my neighbor and friend,\nwho contributed the music and sfx',
+    'also, thanks to rdb and the Panda3D community\nto help me out, when'
+    'questions arose'
+
 ]
 
 # fog
@@ -91,8 +100,8 @@ STONE_START = core.Vec3(0.07, 0.08, 0.07)
 STONE_DELTA = core.Vec3(0.2, 0.2, 0.2) * 0.2
 
 # character constants
-MAX_SPEED = 80
-ACCELERATION = 70
+MAX_SPEED = 25
+ACCELERATION = 28
 BREAKING = 14
 ROTATION_SPEED = 120
 PITCH_SPEED = 15 / MAX_SPEED

@@ -44,7 +44,7 @@ class FollowCam(object):
         self.z_dummy = self.dummy.attach_new_node('cam_z' + follow.get_name())
         self.z_dummy.set_z(-common.Z_OFFSET)
         self.cam_z = self.follow.get_pos(self.root).z + common.Z_OFFSET
-        self.focus_offset = core.Vec3(0)
+        self.focus_offset = self.follow.attach_new_node('focus_offset')
 
     def update(self, dt):
         if self.mwn.has_mouse():
@@ -52,22 +52,10 @@ class FollowCam(object):
                 self.mwn.get_mouse_x(),
                 self.mwn.get_mouse_y()
             )
-            self.focus_offset.x = mouse_delta.x * common.MX_MAX
-            self.focus_offset.z = mouse_delta.y * common.MY_MAX
-        # return_focus = common.MOUSE_RETURN_SPEED * dt
-        # if self.focus_offset.x > 0:
-        #     self.focus_offset.x -= return_focus
-        #     self.focus_offset.x = max(self.focus_offset.x, 0)
-        # elif self.focus_offset.x < 0:
-        #     self.focus_offset.x += return_focus
-        #     self.focus_offset.x = min(self.focus_offset.x, 0)
-        # if self.focus_offset.z > 0:
-        #     self.focus_offset.z -= return_focus
-        #     self.focus_offset.z = max(self.focus_offset.z, 0)
-        # elif self.focus_offset.z < 0:
-        #     self.focus_offset.z += return_focus
-        #     self.focus_offset.z = min(self.focus_offset.z, 0)
-        f_pos = self.follow.get_pos(self.root)
+            self.focus_offset.set_x(mouse_delta.x * common.MX_MAX)
+            self.focus_offset.set_z(mouse_delta.y * common.MY_MAX)
+
+        f_pos = self.focus_offset.get_pos(self.root)
         z_diff = f_pos.z + common.Z_OFFSET - self.cam_z
         self.dummy.set_pos(f_pos)
         h = util.clamp_angle(self.dummy.get_h())
@@ -83,4 +71,5 @@ class FollowCam(object):
         self.cam.set_pos(self.root, self.dummy.get_pos())
         self.cam.set_y(self.dummy, common.Y_OFFSET)
         self.cam.set_z(self.dummy, self.cam_z)
-        self.cam.look_at(f_pos + common.FOCUS_POINT + self.focus_offset)
+
+        self.cam.look_at(f_pos + common.FOCUS_POINT)

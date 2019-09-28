@@ -63,6 +63,8 @@ class World(gamedata.GameData):
         self.__setup_solved_symbols()
 
         self.__first_obelisk = True
+        self.__tutorial = True
+        self.__tut_np = None
 
         self.__nonogram = None
         self.__puzzle = None
@@ -329,15 +331,31 @@ class World(gamedata.GameData):
     def __solved(self, index):
         self.__solved_symbols[index].show()
 
+    def __remove_tut(self):
+        if self.__tut_np is not None:
+            self.__tut_np.detach_node()
+            self.__tut_np = None
+
     def __toggle_nonogram(self, index):
+        if self.__tutorial:
+            self.__tutorial = False
+            c = core.CardMaker('tut')
+            c.set_frame_fullscreen_quad()
+            self.__tut_np = self.aspect2d.attach_new_node(c.generate())
+            tex = self.loader.load_texture('nonogram_wikipedia.png')
+            self.__tut_np.set_texture(tex, 1)
+            self.accept_once('space-up', self.__remove_tut)
+            self.accept_once('enter-up', self.__remove_tut)
+            self.accept_once('mouse2-up', self.__remove_tut)
+            self.accept_once('mouse3-up', self.__remove_tut)
         self.__inner_bounds = True
         self.__ng_last_active = self.global_clock.get_frame_time()
+        if index == self.__nonogram.current_nonogram_id:
+            return
         if not self.__nonogram.nonogram_loaded:
             self.__nonogram.start_nonogram(index)
             if not self.__nonogram.is_nonogram_solved(index):
                 self.__nonogram.set_nonogram_callback(self.__solved, (index, ))
-        if index == self.__nonogram.current_nonogram_id:
-            return
 
     def __obelisk_found_event(self, i):
         self.__outer_bounds = True
@@ -346,6 +364,7 @@ class World(gamedata.GameData):
         if self.__first_obelisk:
             self.display_hint(common.TXT_FIRST_OBELISK)
             self.__first_obelisk = False
+            self.__tutorial = True
 
     def __update_terrain(self, task):
         if self.global_clock.get_frame_time() - self.__ng_last_active > 1:
