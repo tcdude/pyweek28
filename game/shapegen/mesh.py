@@ -176,7 +176,7 @@ class Mesh(object):
             if d:
                 r = 1 / d
             else:
-                print('was 0')
+                # print('was 0')
                 r = 1
 
             tangent = core.Vec3(
@@ -384,7 +384,7 @@ class Vertex(object):
         try:
             self._trs.pop(self._trs.index(triangle))
         except ValueError:
-            print('triangle not found')
+            # print('triangle not found')
             raise
 
     @property

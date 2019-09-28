@@ -56,7 +56,7 @@ class World(gamedata.GameData):
         self.__solved_symbols = None
         self.noise = noise.Noise()
         self.__woods, self.__bounds, self.ob_coords = self.noise.woods()
-        print(self.ob_coords)
+        # print(self.ob_coords)
         self.setup_terrain()
         self.place_devils_tower()
         self.place_trees()
@@ -194,7 +194,7 @@ class World(gamedata.GameData):
         )
         bounds_tex = np.zeros((1024, 1024, 3), np.float32)
         bounds_tex[self.__bounds[:1024, :1024], :] = -0.05
-        print(bounds_tex.shape)
+        # print(bounds_tex.shape)
         tex.set_ram_image_as(bounds_tex, 'RGB')
         tex.reload()
         ts.set_mode(core.TextureStage.M_add)
@@ -358,7 +358,7 @@ class World(gamedata.GameData):
         hs = common.T_XY * common.T_XY_SCALE / 2
         last = common.T_XY - 1
         if not (-hs <= x <= hs and -hs <= y <= hs):
-            print(f'x/y not on Terrain ({x}/{y})')
+            # print(f'x/y not on Terrain ({x}/{y})')
             return 0
         x += hs
         y += hs

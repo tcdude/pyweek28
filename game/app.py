@@ -84,6 +84,7 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
         # general scene setup
         self.disable_mouse()
         self._shapegen = shape.ShapeGen()
+        self.__really_exit = 0
 
         # self.accept('n', self.toggle_nonogram)
         self.accept('raw-w', self.update_keymap, ['f', 1])
@@ -98,7 +99,7 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
         self.accept('raw-d', self.update_keymap, ['r', -1])
         self.accept('raw-d-repeat', self.update_keymap, ['r', -1])
         self.accept('raw-d-up', self.update_keymap, ['r', 0])
-        self.accept('escape', sys.exit, [0])
+        self.accept('escape', self.__make_sure)
         self.accept('f1', self.toggle_wireframe)
 
         # character setup
@@ -112,7 +113,12 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
 
         # camera, fog, lighting
         self.follow_cam = followcam.FollowCam(
-            self.render, self.cam, self.char.node_path, self.sample_terrain_z)
+            self.render,
+            self.cam,
+            self.char.node_path,
+            self.sample_terrain_z,
+            self.mouseWatcherNode
+        )
         self.cam.node().get_lens().set_fov(60)
         exp_fog = core.Fog('exp_fog')
         exp_fog.set_color(*common.FOG_COLOR)
@@ -135,6 +141,52 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
         self.render.set_light(al_np)
         self.render.set_shader_auto()
 
+        self.atmo = self.loader.load_sfx('Elegia.ogg')
+        # self.atmo = self.loader.load_sfx('atmoseerie04.ogg')
+        self.atmo.set_loop(True)
+        self.atmo.set_volume(0.2)
+        self.atmo.play()
+        self.task_mgr.add(self.char_update, 'char_update')
+        self.start_messages()
+        # self.do_method_later(common.START_DURATION, )
+
+    @property
+    def collision(self):
+        return self.__collision
+
+    def __make_sure(self):
+        ft = self.global_clock.get_frame_time()
+        if self.__really_exit > ft:
+            sys.exit(0)
+        self.display_hint('Press ESC again to quit.', 2)
+        self.__really_exit = ft + 3
+
+    def __toggle_wf(self, *_):
+        self.toggle_wireframe()
+
+    def start_messages(self):
+        self.display_hint('Devils Tower, somewhere in WY...', 4)
+        self.display_hint('   ', 1)
+        self.display_hint('Nah... just kidding...', 2)
+        self.display_hint('This is just a simulation...', 3)
+        self.display_hint('Enjoy exploring the not so real world.', 2)
+        self.display_hint('   ', 1)
+        self.display_hint('Hopefully you do not care too much about \n'
+                          'graphical fidelity.. ', 2)
+        self.display_hint('   ', 1)
+        self.do_method_later(6.5, self.__toggle_wf, 'glitch')
+        self.do_method_later(7.1, self.__toggle_wf, 'glitch')
+        self.do_method_later(7.8, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.1, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.12, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.16, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.18, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.21, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.23, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.4, self.__toggle_wf, 'glitch')
+        self.do_method_later(8.9, self.__toggle_wf, 'normal')
+        self.do_method_later(9.9, self.__toggle_wf, 'normal')
+
         ht = '/'.join(
             [
                 str(self.keyboard_map.get_mapped_button(c))
@@ -144,23 +196,12 @@ class GameApp(world.World, nonogram.NonogramSolver, puzzle.Puzzle):
         self.display_hint(
             f'Use the "{ht}" keys to move around'
         )
-        self.atmo = self.loader.load_sfx('atmoseerie04.ogg')
-        self.atmo.set_loop(True)
-        self.atmo.set_volume(0.3)
-        self.atmo.play()
-        self.task_mgr.add(self.char_update, 'char_update')
-
-    @property
-    def collision(self):
-        return self.__collision
 
     def winning_screen(self):
         self.no_movement = True
-        self.display_hint('Incredible!!! You did it...')
-        self.display_hint('[insert fireworks here]')
-        self.display_hint('<brain too slow... words not forming>')
-        self.display_hint('GAME OVER')
-        self.do_method_later(17, sys.exit, 'die...', extraArgs=[0])
+        for msg in common.TXT_WON:
+            self.display_hint(msg)
+        self.do_method_later(25, sys.exit, 'die...', extraArgs=[0])
 
     def char_update(self, task):
         if self.no_movement:

@@ -35,16 +35,27 @@ NAC = True
 
 # general
 SCR_RES = 1020, 764
+START_DURATION = 5
 
 # text
-TXT_FOUND_RINGS = 'Strange... what is this thing?'
-TXT_LEVER_HINT = 'Maybe those levers do something?'
+TXT_FOUND_RINGS = 'Look... what is this thing?\n\n...some sort of shrine?'
+TXT_LEVER_HINT = 'It seems to be mechanical in some way.'
 TXT_LEVER_ACTIVATE = 'Use --L--/--R-- to move the lever'
 TXT_LEVER_FIRST_MOVE = 'Looks like we need a combination... \n' \
                        'I wonder who made those ugly symbols though...'
 TXT_LEVER_LONG_TIME = 'Maybe there are other clues around here??'
 TXT_FIRST_OBELISK = 'Huh?!?.. That thing kind of looks out of place.\n\n' \
                     'Should we take a closer look?'
+TXT_WON = [
+    'Incredible!!! You did it...',
+    '''Frankly, I'm astonished you got here with those meager hints...''',
+    '"..."',
+    '"..."',
+    '<brain too slow... OV3RLO4D words not forming prprly...>',
+    'G A M E   O V E R',
+    'G A M E   O V E R',
+    'G A M E   O V E R !',
+]
 
 # fog
 FOG_COLOR = (0.3, 0.3, 0.3)
@@ -86,10 +97,10 @@ BREAKING = 14
 ROTATION_SPEED = 120
 PITCH_SPEED = 15 / MAX_SPEED
 CHARACTER_COLLISION_RADIUS = 1.2
-MIN_SFX_SPEED = 0.5
-MAX_SFX_SPEED = 1.6
+MIN_SFX_SPEED = 0.4
+MAX_SFX_SPEED = 1.0
 CUT_OFF_SPEED = 0.5
-SFX_VOLUME = 0.1
+SFX_VOLUME = 0.02
 
 # follow-cam constants
 TURN_RATE = 2.5
@@ -97,6 +108,10 @@ Y_OFFSET = -20
 Z_OFFSET = 8
 FOCUS_POINT = core.Vec3(0, 0, 6.5)
 Z_RATE = 1
+MX_MAX = 7
+MY_MAX = 6
+MOUSE_SPEED = 10
+MOUSE_RETURN_SPEED = 4.4
 
 # terrain constants
 T_XY = 1025
@@ -124,7 +139,7 @@ WN_TYPE = fns.NoiseType.Cellular
 WN_DIST_FUNC = fns.CellularDistanceFunction.Natural
 WN_RET_TYPE = fns.CellularReturnType.CellValue
 WN_FRACTAL_OCT = 5
-W_CELL_TYPE_COUNT = 12
+W_CELL_TYPE_COUNT = 14
 W_BOUND_CLIP = 0.6
 W_WOOD_CELL_COUNT = 2
 W_INDIVIDUAL_TREES = 10

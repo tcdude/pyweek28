@@ -62,8 +62,8 @@ class Character(object):
         self._rot = 0
         self._z = 0
         self.animate()
-        self.__sfx = self.root.loader.load_sfx('wheel.ogg')
-        self.__sfx.set_volume(0.1)
+        self.__sfx = self.root.loader.load_sfx('engine.ogg')
+        self.__sfx.set_volume(0.01)
         self.__sfx.set_loop(True)
         self.__sfx.play()
 

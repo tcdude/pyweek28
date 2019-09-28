@@ -192,6 +192,10 @@ class Grid(object):
         self.__active = -1
         self.hard_reset()
 
+    @property
+    def ready(self):
+        return self.__active > -1
+
     def __getitem__(self, item):
         if self.__active < 0:
             raise ValueError('You first need to activate a grid')
@@ -200,6 +204,7 @@ class Grid(object):
     def set_active(self, index):
         if index not in range(3):
             raise ValueError('needs to be in range(3)')
+        # print(f'switched to puzzle no {index}')
         self.__active = index
 
     def toggle(self, x, y):
@@ -218,6 +223,7 @@ class Grid(object):
         self.__active = -1
 
     def check(self, ref):
+        # print(self.ar_str(ref), str(self))
         if self.__active < 0:
             raise ValueError('You first need to activate a grid')
         for y in range(1, self.yx[0] - 1):
@@ -232,13 +238,27 @@ class Grid(object):
         return f'Grid-{self.__active}, ({self.yx})'
 
     def __str__(self):
-        s = f'{self.__active} = \n'
-        for r in self.__grid[self.__active]:
-            ts = ' '
-            for v in r:
-                ts += '1 ' if v else '0 '
-            ts += '\n'
-            s += ts
+        return self.ar_str()
+
+    def ar_str(self, nda=None):
+        if nda is not None:
+            s = f'Solution {self.__active} = \n'
+            s += ' '.join(['0' for _ in range(self.yx[1])])
+            s += '\n'
+            for r in nda:
+                ts = ' 0 '
+                for v in r:
+                    ts += '1 ' if v else '0 '
+                ts += '0 \n'
+                s += ts
+        else:
+            s = f'Grid {self.__active} = \n'
+            for r in self.__grid[self.__active]:
+                ts = ' '
+                for v in r:
+                    ts += '1 ' if v else '0 '
+                ts += '\n'
+                s += ts
         return s
 
 
@@ -457,12 +477,6 @@ class NonogramSolver(gamedata.GameData):
             self.__nonogram_loaded = False
             self.__callback = None
 
-    def reset_grid(self):
-        for y in range(self.__grid.yx[0]):
-            for x in range(self.__grid.yx[1]):
-                if self.__grid[x, y]:
-                    self.toggle_cell(x, y)
-
     def toggle_nonogram(self):
         if self.__hidden:
             self.show_nonogram()
@@ -535,7 +549,7 @@ class NonogramSolver(gamedata.GameData):
             self.show_nonogram()
         self.__setup()
         rv, cv = self.__nonogram_gen.build_number_hints(sm)
-        print(rv, cv)
+        # print(rv, cv)
         for i, r in enumerate(rv):
             if not r:
                 self.__h_txt_values[i + 1][0] = '0'
@@ -553,9 +567,19 @@ class NonogramSolver(gamedata.GameData):
         self.__nonogram_loaded = True
 
     def __update_cells(self):
+        if not self.__grid.ready:
+            print('warning: tried to update the grid before the grid was '
+                  'populated')
+            return
         self.reset_grid()
         # print(repr(self.__grid))
         # print(str(self.__grid))
+
+    def reset_grid(self):
+        for y in range(self.__grid.yx[0]):
+            for x in range(self.__grid.yx[1]):
+                if self.__grid[x, y]:
+                    self.toggle_cell(x, y)
 
     def __update_text(self):
         self.__h_txt_grid = [
