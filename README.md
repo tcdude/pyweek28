@@ -54,6 +54,12 @@ I'm just too lazy to look up the proper commands / instructions for each.
 
 ### Installation
 
+#### Windows 64-bit
+If you're on a 64-bit Windows, you can download a binary under 
+[Releases](https://github.com/tcdude/pyweek28/releases).
+
+#### Install from source
+
 Clone/Download this repo *(and unpack the zip file, if not using `git clone`)*
 and run this command inside the directory:
 
