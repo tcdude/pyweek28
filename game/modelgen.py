@@ -30,6 +30,7 @@ import random
 from math import ceil
 from math import pi
 
+import numpy as np
 from panda3d import core
 
 from .shapegen import shape
@@ -60,8 +61,8 @@ def fir_tree(
         bbc + common.FIR_BRANCH_DELTA * (random.random() - 0.5) * 0.1
         for _ in range(segments)
     ]
-    np = core.NodePath('fir_tree')
-    trunk_np = np.attach_new_node(
+    node_path = core.NodePath('fir_tree')
+    trunk_node_path = node_path.attach_new_node(
         sg.cone(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -74,9 +75,9 @@ def fir_tree(
             name='fir_tree/trunk'
         )
     )
-    trunk_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
+    trunk_node_path.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
     if tex is not None:
-        trunk_np.set_texture(tex, 1)
+        trunk_node_path.set_texture(tex, 1)
     seg_height = height * 0.8 / segments
     seg_start = height * 0.2
     for i, bc in enumerate(branch_colors):
@@ -90,7 +91,7 @@ def fir_tree(
                 (segments - i - 1) * trunk_radius * 0.8
             ) if i < segments - 1 else 0,
         )
-        br_np = np.attach_new_node(
+        br_node_path = node_path.attach_new_node(
             sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.up(),
@@ -102,10 +103,10 @@ def fir_tree(
                 name=f'fir_tree/branch{i}'
             )
         )
-        br_np.set_z(trunk_np, seg_start + seg_height * 0.5 + i * seg_height)
-        br_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
+        br_node_path.set_z(trunk_node_path, seg_start + seg_height * 0.5 + i * seg_height)
+        br_node_path.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
 
-    return np, trunk_radius
+    return node_path, trunk_radius
 
 
 # noinspection PyArgumentList
@@ -127,8 +128,8 @@ def leaf_tree(
     branch_color += common.LEAF_TRUNK_DELTA * random.random()
     branch_color2 += common.LEAF_TRUNK_DELTA * random.random()
 
-    np = core.NodePath('leaf_tree')
-    trunk_np = np.attach_new_node(
+    node_path = core.NodePath('leaf_tree')
+    trunk_node_path = node_path.attach_new_node(
         sg.cone(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -141,9 +142,9 @@ def leaf_tree(
             name='leaf_tree/trunk'
         )
     )
-    trunk_np.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
+    trunk_node_path.set_hpr(random.uniform(0, 360), random.uniform(0, 5), 0)
     if tex is not None:
-        trunk_np.set_texture(tex, 1)
+        trunk_node_path.set_texture(tex, 1)
 
     for i in range(random.randint(1, 3)):
         bb = core.Vec3(
@@ -152,7 +153,7 @@ def leaf_tree(
             random.uniform(height / 3, height * 0.4),
         )
 
-        br_np = np.attach_new_node(
+        br_node_path = node_path.attach_new_node(
             sg.blob(
                 origin=core.Vec3(0),
                 direction=core.Vec3.up(),
@@ -160,22 +161,22 @@ def leaf_tree(
                 color=branch_color,
                 color2=branch_color2,
                 name='fir_tree/branch',
-                seed=random.randint(0, 2**32 - 1),
+                seed=np.random.randint(0, 2**31, dtype=np.int32),
                 noise_radius=12,
                 nac=False
             )
         )
-        br_np.set_z(trunk_np, height - bb.z * random.random())
-        br_np.set_x(trunk_np, bb.x * (random.random() - 0.5))
-        br_np.set_y(trunk_np, bb.y * (random.random() - 0.5))
-        br_np.set_hpr(random.uniform(0, 360), random.uniform(0, 90), 0)
-    return np, trunk_radius
+        br_node_path.set_z(trunk_node_path, height - bb.z * random.random())
+        br_node_path.set_x(trunk_node_path, bb.x * (random.random() - 0.5))
+        br_node_path.set_y(trunk_node_path, bb.y * (random.random() - 0.5))
+        br_node_path.set_hpr(random.uniform(0, 360), random.uniform(0, 90), 0)
+    return node_path, trunk_radius
 
 
 # noinspection PyArgumentList
 def obelisk(r=(2.5, 1.8)):
-    np = core.NodePath('obelisk')
-    base = np.attach_new_node(
+    node_path = core.NodePath('obelisk')
+    base = node_path.attach_new_node(
         sg.cone(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -189,7 +190,7 @@ def obelisk(r=(2.5, 1.8)):
             nac=False
         )
     )
-    top = np.attach_new_node(
+    top = node_path.attach_new_node(
         sg.cone(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -207,13 +208,13 @@ def obelisk(r=(2.5, 1.8)):
     # mat = core.Material()
     # mat.set_emission(core.Vec4(.35, 1.0, 0.52, 0.1))
     # mat.set_shininess(5.0)
-    # np.set_material(mat)
-    return np
+    # node_path.set_material(mat)
+    return node_path
 
 
 # noinspection PyArgumentList
 def stone(xy):
-    np = core.NodePath('stone')
+    node_path = core.NodePath('stone')
     base = common.STONE_START
     color = base + common.STONE_DELTA * random.random()
     color2 = base + common.STONE_DELTA * random.random()
@@ -221,7 +222,7 @@ def stone(xy):
         xy,
         random.uniform(min(xy) * 0.9, min(xy) * 1.1)
     )
-    br_np = np.attach_new_node(
+    br_node_path = node_path.attach_new_node(
         sg.blob(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -234,23 +235,23 @@ def stone(xy):
             nac=False
         )
     )
-    return br_np
+    return br_node_path
 
 
 # noinspection PyArgumentList
 def three_rings():
-    np = core.NodePath('three_rings')
+    node_path = core.NodePath('three_rings')
     o1 = obelisk((1.5, 0.8))
     o2 = obelisk((1.5, 0.8))
-    o1.reparent_to(np)
-    o2.reparent_to(np)
+    o1.reparent_to(node_path)
+    o2.reparent_to(node_path)
     o1.set_pos(common.TR_O1_OFFSET)
     o2.set_pos(common.TR_O2_OFFSET)
     random.shuffle(common.TR_COLORS)
     rings = []
     symbol_cards = []
     for r, h, c in zip(common.TR_RADII, common.TR_HEIGHTS, common.TR_COLORS):
-        rings.append(np.attach_new_node(
+        rings.append(node_path.attach_new_node(
             sg.cone(
                 origin=core.Vec3(0),
                 direction=core.Vec3.up(),
@@ -277,12 +278,12 @@ def three_rings():
             symbol_cards[-1][-1].set_z(h)
             symbol_cards[-1][-1].set_billboard_axis()
 
-    return np, rings, symbol_cards
+    return node_path, rings, symbol_cards
 
 
 def lever(i):
-    np = core.NodePath('lever')
-    box = np.attach_new_node(
+    node_path = core.NodePath('lever')
+    box = node_path.attach_new_node(
         sg.box(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -293,7 +294,7 @@ def lever(i):
         )
     )
     box.set_z(box, -common.TR_LEVER_BOX_BB[2])
-    lev = np.attach_new_node(
+    lev = node_path.attach_new_node(
         sg.cone(
             origin=core.Vec3(0),
             direction=core.Vec3.up(),
@@ -308,20 +309,20 @@ def lever(i):
     )
     lev.set_z(0.15)
     # lev.set_r(90)
-    return np, lev
+    return node_path, lev
 
 
 def stone_circle(r, num_stones):
-    np = core.NodePath('stone_circle')
-    rot = np.attach_new_node('rot')
+    node_path = core.NodePath('stone_circle')
+    rot = node_path.attach_new_node('rot')
     d = rot.attach_new_node('d')
     d.set_y(r)
     c = 2 * pi * r / 2 * 3
     length = c / num_stones / 2
     for i in range(num_stones):
         rot.set_h(300 / num_stones * i - 30)
-        p = d.get_pos(np)
+        p = d.get_pos(node_path)
         s = stone(core.Vec2(length / 2, length))
-        s.reparent_to(np)
+        s.reparent_to(node_path)
         s.set_pos(p)
-    return np
+    return node_path
