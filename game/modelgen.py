@@ -230,7 +230,7 @@ def stone(xy):
             color=color,
             color2=color2,
             name='fir_tree/branch',
-            seed=random.randint(0, 2 ** 32 - 1),
+            # seed=random.randint(0, 2 ** 32 - 1),
             noise_radius=200,
             nac=False
         )
