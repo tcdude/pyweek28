@@ -4,6 +4,9 @@ This is my entry for [PyWeek 28](https://pyweek.org/28/), with the theme __*Towe
 
 ## About
 
+![Screenshot](https://www.tizilogic.com/wp-content/uploads/2019/09/Screenshot-from-2019-09-28-23-55-02.png "Devils Tower")
+
+
 A puzzle / exploration game that heavily relies on procedural generation.
 I wasn't too excited about the theme Tower at first and when searching
 the web, I stumbled on the ["Devils Tower"](https://en.wikipedia.org/wiki/Devils_Tower) 
@@ -90,3 +93,6 @@ You can switch to wireframe view with **F1** inside the game at any time.
   * My neighbor joel, both for the music and the regular requests to 
   come outside to let our dogs play in the garden -> the only fresh air I got in 7 days :P
   * rdb for motivating me to take part in this competition in the first place 
+
+![Screenshot](https://www.tizilogic.com/wp-content/uploads/2019/09/Screenshot-from-2019-09-28-23-55-42.png "Stone Circle")
+![Screenshot](https://www.tizilogic.com/wp-content/uploads/2019/09/Screenshot-from-2019-09-27-04-55-41.png "Nonogram Solver")
