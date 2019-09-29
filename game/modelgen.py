@@ -161,7 +161,7 @@ def leaf_tree(
                 color=branch_color,
                 color2=branch_color2,
                 name='fir_tree/branch',
-                seed=np.random.randint(0, 2**31, dtype=np.int32),
+                # seed=np.random.randint(0, 2**31, dtype=np.int32),
                 noise_radius=12,
                 nac=False
             )
