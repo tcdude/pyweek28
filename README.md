@@ -54,8 +54,9 @@ I'm just too lazy to look up the proper commands / instructions for each.
 Clone/Download this repo *(and unpack the zip file, if not using `git clone`)*
 and run this command inside the directory:
 
-`pip install -r requirements.txt`  (ideally in a virtualenv, but that's 
-just my opinion)
+`pip install -r requirements.txt`  *(ideally in a virtual environment, but 
+that's just my opinion. [This](https://docs.python-guide.org/dev/virtualenvs/)
+might help to bring you up to speed on the topic...)*
 
 ## Run the game
 
