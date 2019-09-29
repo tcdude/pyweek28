@@ -20,11 +20,22 @@ proved very helpful together with the collision system.
 
 ## Build / Install
 
-Clone this repo and run:
+This game need Python 3.6 or higher to run and also, if you're not on 64bit Windows, 
+you'll need build tools and the Python headers installed on your system. 
+
+On Ubuntu that would be this command:
+
+`sudo apt-get install build-essential python3-dev`
+
+I'm sure on other operating systems / distributions this is just as easy, I'm just too
+lazy to look up the proper command for each.  
+
+Clone/Download this repo and run:
 
 `pip install -r requirements.txt`  (ideally in a virtualenv, but that's just my opinion)
 
-afterwards simply run `python run_game.py`
+## Run the game
 
-This game need Python 3.6 or higher to run
+After installing all the requirements simply run: 
 
+`python run_game.py` *(or `python3 run_game.py` when both Python2 and 3 are installed)*
